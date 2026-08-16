@@ -1,160 +1,130 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.1.0-diagnostic';
+  const VERSION = '0.2.0-mobile-shell';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
-  const state = {
-    selecting: null,
-    instruction: null,
-    editor: null,
-    lastReport: null,
+  const SELECTORS = {
+    instruction: 'div.SplitPane.vertical > div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto',
+    editorScroll: '#editor_with_extra .CodeMirror-scroll',
+    splitPane: 'div.SplitPane.vertical',
+    pane1: 'div.SplitPane.vertical > div.Pane.vertical.Pane1',
+    pane2: 'div.SplitPane.vertical > div.Pane.vertical.Pane2'
   };
 
-  const cssPath = (el) => {
-    if (!el || el.nodeType !== 1) return null;
-    const parts = [];
-    let node = el;
-    for (let depth = 0; node && node !== document.body && depth < 6; depth++, node = node.parentElement) {
-      let part = node.tagName.toLowerCase();
-      if (node.id) {
-        part += `#${CSS.escape(node.id)}`;
-        parts.unshift(part);
-        break;
-      }
-      const classes = [...node.classList].filter(Boolean).slice(0, 3);
-      if (classes.length) part += '.' + classes.map(c => CSS.escape(c)).join('.');
-      parts.unshift(part);
+  const state = { mode: 'read' };
+
+  const style = document.createElement('style');
+  style.id = 'dq-mobile-style';
+  style.textContent = `
+    html, body { overflow-x: hidden !important; }
+    #dq-mobile-toggle {
+      position: fixed; right: 12px; bottom: 14px; z-index: 2147483647;
+      display: flex; gap: 6px; padding: 6px; border-radius: 12px;
+      background: rgba(17,24,39,.96); box-shadow: 0 4px 18px rgba(0,0,0,.45);
     }
-    return parts.join(' > ');
-  };
-
-  const describe = (el) => {
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return {
-      tag: el.tagName,
-      id: el.id || null,
-      classes: [...el.classList],
-      path: cssPath(el),
-      rect: {
-        x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)
-      },
-      text: (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 180)
-    };
-  };
-
-  const viewport = () => ({
-    innerWidth: window.innerWidth,
-    innerHeight: window.innerHeight,
-    devicePixelRatio: window.devicePixelRatio,
-    orientation: screen.orientation?.type || null,
-    visualViewport: window.visualViewport ? {
-      width: Math.round(visualViewport.width),
-      height: Math.round(visualViewport.height),
-      offsetLeft: Math.round(visualViewport.offsetLeft),
-      offsetTop: Math.round(visualViewport.offsetTop),
-      scale: visualViewport.scale
-    } : null
-  });
-
-  const report = () => {
-    const data = {
-      version: VERSION,
-      url: location.href,
-      viewport: viewport(),
-      instruction: describe(state.instruction),
-      editor: describe(state.editor),
-      activeElement: describe(document.activeElement)
-    };
-    state.lastReport = data;
-    console.log('[DQ Mobile diagnostic]', data);
-    return JSON.stringify(data, null, 2);
-  };
-
-  const toast = (text) => {
-    let el = document.getElementById('dq-mobile-toast');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'dq-mobile-toast';
-      Object.assign(el.style, {
-        position: 'fixed', left: '12px', right: '12px', bottom: '82px', zIndex: '2147483647',
-        background: '#111827', color: 'white', padding: '12px', borderRadius: '10px',
-        font: '14px/1.35 system-ui, sans-serif', boxShadow: '0 4px 20px rgba(0,0,0,.4)'
-      });
-      document.documentElement.appendChild(el);
+    #dq-mobile-toggle button {
+      border: 0; border-radius: 8px; padding: 10px 12px; color: white;
+      background: #374151; font: 700 13px/1 system-ui,sans-serif;
     }
-    el.textContent = text;
-    clearTimeout(el._timer);
-    el._timer = setTimeout(() => el.remove(), 2600);
+    #dq-mobile-toggle button[data-active="true"] { background: #2563eb; }
+    body.dq-mobile-read ${SELECTORS.pane1} {
+      width: 100% !important; flex: 1 1 100% !important; max-width: 100% !important;
+      position: relative !important; left: 0 !important;
+    }
+    body.dq-mobile-read ${SELECTORS.pane2} { display: none !important; }
+    body.dq-mobile-code ${SELECTORS.pane1} { display: none !important; }
+    body.dq-mobile-code ${SELECTORS.pane2} {
+      width: 100% !important; flex: 1 1 100% !important; max-width: 100% !important;
+      position: relative !important; left: 0 !important;
+    }
+    body.dq-mobile-read ${SELECTORS.instruction} {
+      width: 100% !important; max-width: none !important; box-sizing: border-box !important;
+      padding-left: 20px !important; padding-right: 20px !important;
+    }
+    body.dq-mobile-code #editor_with_extra,
+    body.dq-mobile-code #editor_with_extra .dq-editor,
+    body.dq-mobile-code #editor_with_extra .CodeMirror,
+    body.dq-mobile-code #editor_with_extra .CodeMirror-scroll {
+      width: 100% !important; max-width: 100% !important;
+    }
+    body.dq-mobile-code #editor_with_extra .CodeMirror {
+      font-size: 16px !important;
+    }
+    @media (max-width: 1100px) {
+      #dq-mobile-toggle { bottom: max(12px, env(safe-area-inset-bottom)); }
+    }
+  `;
+  document.documentElement.appendChild(style);
+
+  const ensureContinue = () => {
+    const candidates = [...document.querySelectorAll('button, a')];
+    const btn = candidates.find(el => /continue here/i.test((el.innerText || el.textContent || '').trim()));
+    if (btn && !btn.dataset.dqAutoClicked) {
+      btn.dataset.dqAutoClicked = '1';
+      btn.click();
+    }
   };
 
-  const startPick = (kind) => {
-    state.selecting = kind;
-    toast(`Tap the ${kind === 'instruction' ? 'INSTRUCTIONS' : 'CODE EDITOR'} area once.`);
-  };
+  const getEditor = () => document.querySelector(SELECTORS.editorScroll);
+  const getInstruction = () => document.querySelector(SELECTORS.instruction);
 
-  document.addEventListener('click', (e) => {
-    if (!state.selecting) return;
-    if (e.target.closest?.('#dq-mobile-panel')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const picked = e.target;
-    state[state.selecting] = picked;
-    const kind = state.selecting;
-    state.selecting = null;
-    toast(`${kind === 'instruction' ? 'Instructions' : 'Editor'} captured.`);
-    renderStatus();
-  }, true);
-
-  const panel = document.createElement('div');
-  panel.id = 'dq-mobile-panel';
-  Object.assign(panel.style, {
-    position: 'fixed', right: '10px', bottom: '10px', zIndex: '2147483647',
-    display: 'flex', gap: '6px', alignItems: 'center', padding: '7px', borderRadius: '12px',
-    background: 'rgba(17,24,39,.94)', color: 'white', font: '12px system-ui, sans-serif',
-    boxShadow: '0 4px 18px rgba(0,0,0,.45)'
-  });
-
-  const button = (label, fn) => {
-    const b = document.createElement('button');
-    b.textContent = label;
-    Object.assign(b.style, {
-      border: '0', borderRadius: '8px', padding: '8px 9px', background: '#374151', color: 'white',
-      font: '600 12px system-ui, sans-serif'
+  const applyMode = (mode) => {
+    state.mode = mode;
+    document.body.classList.toggle('dq-mobile-read', mode === 'read');
+    document.body.classList.toggle('dq-mobile-code', mode === 'code');
+    document.querySelectorAll('#dq-mobile-toggle button').forEach(btn => {
+      btn.dataset.active = String(btn.dataset.mode === mode);
     });
-    b.addEventListener('click', fn);
-    return b;
-  };
 
-  const status = document.createElement('span');
-  status.style.padding = '0 3px';
-  const renderStatus = () => {
-    status.textContent = `DQ ${VERSION} · I:${state.instruction ? '✓' : '–'} E:${state.editor ? '✓' : '–'}`;
-  };
-
-  panel.append(
-    status,
-    button('Pick I', () => startPick('instruction')),
-    button('Pick E', () => startPick('editor')),
-    button('Report', async () => {
-      const text = report();
-      try {
-        await navigator.clipboard.writeText(text);
-        toast('Diagnostic copied to clipboard.');
-      } catch {
-        prompt('Copy this diagnostic:', text);
+    requestAnimationFrame(() => {
+      const editor = getEditor();
+      const cm = editor?.closest('.CodeMirror')?.CodeMirror;
+      if (mode === 'code' && cm && typeof cm.refresh === 'function') {
+        setTimeout(() => cm.refresh(), 80);
       }
-    })
-  );
-  renderStatus();
-  document.documentElement.appendChild(panel);
+    });
+  };
 
-  const logViewport = () => console.log('[DQ Mobile viewport]', viewport());
-  window.addEventListener('resize', logViewport, { passive: true });
-  window.visualViewport?.addEventListener('resize', logViewport, { passive: true });
-  window.visualViewport?.addEventListener('scroll', logViewport, { passive: true });
+  const mountToggle = () => {
+    if (document.getElementById('dq-mobile-toggle')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'dq-mobile-toggle';
 
+    const mk = (label, mode) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.dataset.mode = mode;
+      b.addEventListener('click', () => applyMode(mode));
+      return b;
+    };
+
+    wrap.append(mk('READ', 'read'), mk('CODE', 'code'));
+    document.documentElement.appendChild(wrap);
+    applyMode(state.mode);
+  };
+
+  const stabilizeViewport = () => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    document.documentElement.style.setProperty('--dq-vv-height', `${Math.round(vv.height)}px`);
+    document.documentElement.style.setProperty('--dq-vv-width', `${Math.round(vv.width)}px`);
+  };
+
+  const boot = () => {
+    ensureContinue();
+    if (getInstruction() || getEditor()) mountToggle();
+    stabilizeViewport();
+  };
+
+  const observer = new MutationObserver(() => boot());
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  window.addEventListener('resize', stabilizeViewport, { passive: true });
+  window.visualViewport?.addEventListener('resize', stabilizeViewport, { passive: true });
+  window.visualViewport?.addEventListener('scroll', stabilizeViewport, { passive: true });
+
+  boot();
   console.log(`[DQ Mobile] ${VERSION} loaded`);
 })();
