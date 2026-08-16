@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.3.1
+// @version      0.3.2
 // @description  Mobile READ/CODE layout for Dataquest on Android.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -13,7 +13,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3.1-inner-split-fix';
+  const VERSION = '0.3.2-controls-first';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
@@ -39,28 +39,27 @@
   style.id = 'dq-mobile-style';
   style.textContent = `
     html, body { overflow-x: hidden !important; }
-
     #dq-mobile-toggle {
-      position: fixed;
-      right: 12px;
-      bottom: max(14px, env(safe-area-inset-bottom));
-      z-index: 2147483647;
-      display: flex;
-      gap: 6px;
-      padding: 6px;
-      border-radius: 12px;
-      background: rgba(17,24,39,.96);
-      box-shadow: 0 4px 18px rgba(0,0,0,.45);
+      position: fixed !important;
+      right: 12px !important;
+      bottom: max(14px, env(safe-area-inset-bottom)) !important;
+      z-index: 2147483647 !important;
+      display: flex !important;
+      gap: 6px !important;
+      padding: 6px !important;
+      border-radius: 12px !important;
+      background: rgba(17,24,39,.96) !important;
+      box-shadow: 0 4px 18px rgba(0,0,0,.45) !important;
     }
     #dq-mobile-toggle button {
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: #fff;
-      background: #374151;
-      font: 700 13px/1 system-ui,sans-serif;
+      border: 0 !important;
+      border-radius: 8px !important;
+      padding: 10px 12px !important;
+      color: #fff !important;
+      background: #374151 !important;
+      font: 700 13px/1 system-ui,sans-serif !important;
     }
-    #dq-mobile-toggle button[data-active="true"] { background: #2563eb; }
+    #dq-mobile-toggle button[data-active="true"] { background: #2563eb !important; }
 
     body.dq-mobile-read ${S.readPane} {
       display: block !important;
@@ -93,10 +92,6 @@
       overflow: hidden !important;
     }
 
-    /* The diagnostic showed Dataquest's editor is inside a SECOND, horizontal
-       split pane whose editor pane was only ~78px tall and whose .dq-panels
-       ancestor had height:0. Expand that inner editor pane instead of merely
-       resizing the outer pane. */
     body.dq-mobile-code ${S.innerSplit} {
       display: block !important;
       position: relative !important;
@@ -117,7 +112,6 @@
       min-height: 100% !important;
       overflow: visible !important;
     }
-
     body.dq-mobile-code ${S.innerPane2} .dq-panels,
     body.dq-mobile-code ${S.innerPane2} .dq-dark,
     body.dq-mobile-code ${S.innerPane2} > div,
@@ -125,7 +119,6 @@
       height: 100% !important;
       min-height: 0 !important;
     }
-
     body.dq-mobile-code ${S.editorRoot} {
       display: flex !important;
       visibility: visible !important;
@@ -139,32 +132,26 @@
       box-sizing: border-box !important;
       overflow: hidden !important;
     }
-    body.dq-mobile-code ${S.editorRoot} .dq-editor {
-      display: block !important;
-      width: 100% !important;
-      height: 100% !important;
-      min-height: 0 !important;
-    }
-    body.dq-mobile-code ${S.editor} {
+    body.dq-mobile-code ${S.editorRoot} .dq-editor,
+    body.dq-mobile-code ${S.editor},
+    body.dq-mobile-code ${S.editorScroll} {
       display: block !important;
       visibility: visible !important;
       width: 100% !important;
       height: 100% !important;
       min-height: 0 !important;
-      font-size: 16px !important;
     }
-    body.dq-mobile-code ${S.editorScroll} {
-      width: 100% !important;
-      height: 100% !important;
-      min-height: 0 !important;
-      overflow: auto !important;
-    }
+    body.dq-mobile-code ${S.editor} { font-size: 16px !important; }
+    body.dq-mobile-code ${S.editorScroll} { overflow: auto !important; }
   `;
   document.documentElement.appendChild(style);
 
-  const getEditor = () => document.querySelector(S.editor);
-  const getInstruction = () => document.querySelector(S.instruction);
-  const getCodePane = () => document.querySelector(S.codePane);
+  const q = selector => document.querySelector(selector);
+  const getEditor = () => q(S.editor);
+  const getInstruction = () => q(S.instruction);
+  const getCodePane = () => q(S.codePane);
+
+  let mode = 'read';
 
   const refreshEditor = () => {
     const host = getEditor();
@@ -178,9 +165,9 @@
     }, 80);
   };
 
-  let mode = 'read';
   const applyMode = next => {
     mode = next;
+    if (!document.body) return;
     document.body.classList.toggle('dq-mobile-read', next === 'read');
     document.body.classList.toggle('dq-mobile-code', next === 'code');
     document.querySelectorAll('#dq-mobile-toggle button').forEach(btn => {
@@ -197,14 +184,13 @@
     }
   };
 
-  const mount = () => {
-    if (!document.body || document.getElementById('dq-mobile-toggle')) return;
-    if (!getInstruction() || !getEditor()) return;
-
+  const mountControls = () => {
+    if (!document.documentElement || document.getElementById('dq-mobile-toggle')) return;
     const wrap = document.createElement('div');
     wrap.id = 'dq-mobile-toggle';
     const make = (label, value) => {
       const b = document.createElement('button');
+      b.type = 'button';
       b.textContent = label;
       b.dataset.mode = value;
       b.addEventListener('click', () => applyMode(value));
@@ -212,7 +198,7 @@
     };
     wrap.append(make('READ', 'read'), make('CODE', 'code'));
     document.documentElement.appendChild(wrap);
-    applyMode('read');
+    applyMode(mode);
   };
 
   const ensureContinue = () => {
@@ -225,8 +211,9 @@
   };
 
   const boot = () => {
+    mountControls();
     ensureContinue();
-    mount();
+    if (mode === 'code' && getEditor()) refreshEditor();
   };
 
   const observer = new MutationObserver(boot);
