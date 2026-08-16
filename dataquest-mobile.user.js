@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.3.0
-// @description  Diagnostic build for Dataquest mobile layout on Android.
+// @version      0.3.1
+// @description  Mobile READ/CODE layout for Dataquest on Android.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
 // @downloadURL  https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -13,15 +13,18 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3.0-diagnostic';
+  const VERSION = '0.3.1-inner-split-fix';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
   const S = {
-    split: 'div.SplitPane.vertical',
-    pane1: 'div.SplitPane.vertical > div.Pane.vertical.Pane1',
-    pane2: 'div.SplitPane.vertical > div.Pane.vertical.Pane2',
+    outerSplit: 'div.SplitPane.vertical',
+    readPane: 'div.SplitPane.vertical > div.Pane.vertical.Pane1',
+    codePane: 'div.SplitPane.vertical > div.Pane.vertical.Pane2',
     instruction: 'div.SplitPane.vertical > div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto',
+    innerSplit: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal',
+    innerPane1: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal > div.Pane.horizontal.Pane1',
+    innerPane2: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal > div.Pane.horizontal.Pane2',
     editorRoot: '#editor_with_extra',
     editor: '#editor_with_extra .CodeMirror',
     editorScroll: '#editor_with_extra .CodeMirror-scroll'
@@ -35,151 +38,207 @@
   const style = document.createElement('style');
   style.id = 'dq-mobile-style';
   style.textContent = `
-    #dq-mobile-diag {
-      position: fixed; right: 10px; bottom: 10px; z-index: 2147483647;
-      width: min(92vw, 520px); max-height: 52vh; overflow: auto;
-      background: rgba(17,24,39,.98); color: #fff; border-radius: 12px;
-      padding: 10px; box-shadow: 0 4px 18px rgba(0,0,0,.55);
-      font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    html, body { overflow-x: hidden !important; }
+
+    #dq-mobile-toggle {
+      position: fixed;
+      right: 12px;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      z-index: 2147483647;
+      display: flex;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 12px;
+      background: rgba(17,24,39,.96);
+      box-shadow: 0 4px 18px rgba(0,0,0,.45);
     }
-    #dq-mobile-diag .dq-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
-    #dq-mobile-diag button {
-      border:0; border-radius:8px; padding:8px 10px; background:#374151; color:#fff;
-      font:600 12px system-ui,sans-serif;
+    #dq-mobile-toggle button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #fff;
+      background: #374151;
+      font: 700 13px/1 system-ui,sans-serif;
     }
-    #dq-mobile-diag pre { white-space:pre-wrap; word-break:break-word; margin:0; }
+    #dq-mobile-toggle button[data-active="true"] { background: #2563eb; }
+
+    body.dq-mobile-read ${S.readPane} {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      position: relative !important;
+      left: 0 !important;
+    }
+    body.dq-mobile-read ${S.codePane} { display: none !important; }
+    body.dq-mobile-read ${S.instruction} {
+      width: 100% !important;
+      max-width: 100% !important;
+      padding-left: 20px !important;
+      padding-right: 20px !important;
+      padding-bottom: 100px !important;
+      box-sizing: border-box !important;
+      overflow-x: hidden !important;
+    }
+
+    body.dq-mobile-code ${S.readPane} { display: none !important; }
+    body.dq-mobile-code ${S.codePane} {
+      display: block !important;
+      visibility: visible !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: calc(100vh - 64px) !important;
+      position: relative !important;
+      left: 0 !important;
+      top: 0 !important;
+      overflow: hidden !important;
+    }
+
+    /* The diagnostic showed Dataquest's editor is inside a SECOND, horizontal
+       split pane whose editor pane was only ~78px tall and whose .dq-panels
+       ancestor had height:0. Expand that inner editor pane instead of merely
+       resizing the outer pane. */
+    body.dq-mobile-code ${S.innerSplit} {
+      display: block !important;
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      overflow: hidden !important;
+    }
+    body.dq-mobile-code ${S.innerPane1} { display: none !important; }
+    body.dq-mobile-code ${S.innerSplit} > .Resizer { display: none !important; }
+    body.dq-mobile-code ${S.innerPane2} {
+      display: block !important;
+      visibility: visible !important;
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+    }
+
+    body.dq-mobile-code ${S.innerPane2} .dq-panels,
+    body.dq-mobile-code ${S.innerPane2} .dq-dark,
+    body.dq-mobile-code ${S.innerPane2} > div,
+    body.dq-mobile-code ${S.innerPane2} > div > div {
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+
+    body.dq-mobile-code ${S.editorRoot} {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      position: absolute !important;
+      inset: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 100% !important;
+      padding-bottom: 96px !important;
+      box-sizing: border-box !important;
+      overflow: hidden !important;
+    }
+    body.dq-mobile-code ${S.editorRoot} .dq-editor {
+      display: block !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+    }
+    body.dq-mobile-code ${S.editor} {
+      display: block !important;
+      visibility: visible !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      font-size: 16px !important;
+    }
+    body.dq-mobile-code ${S.editorScroll} {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      overflow: auto !important;
+    }
   `;
   document.documentElement.appendChild(style);
 
-  const rect = el => {
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height), top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left) };
+  const getEditor = () => document.querySelector(S.editor);
+  const getInstruction = () => document.querySelector(S.instruction);
+  const getCodePane = () => document.querySelector(S.codePane);
+
+  const refreshEditor = () => {
+    const host = getEditor();
+    const cm = host?.CodeMirror;
+    if (!cm) return;
+    const vvHeight = Math.round(window.visualViewport?.height || window.innerHeight);
+    const desired = Math.max(260, vvHeight - 84);
+    setTimeout(() => {
+      if (typeof cm.setSize === 'function') cm.setSize('100%', desired);
+      if (typeof cm.refresh === 'function') cm.refresh();
+    }, 80);
   };
 
-  const describe = (el) => {
-    if (!el) return null;
-    const cs = getComputedStyle(el);
-    return {
-      tag: el.tagName,
-      id: el.id || null,
-      classes: [...el.classList],
-      rect: rect(el),
-      style: {
-        display: cs.display,
-        visibility: cs.visibility,
-        opacity: cs.opacity,
-        position: cs.position,
-        width: cs.width,
-        height: cs.height,
-        minWidth: cs.minWidth,
-        minHeight: cs.minHeight,
-        overflow: cs.overflow,
-        overflowX: cs.overflowX,
-        overflowY: cs.overflowY,
-        transform: cs.transform,
-        top: cs.top,
-        right: cs.right,
-        bottom: cs.bottom,
-        left: cs.left,
-        zIndex: cs.zIndex
-      }
-    };
-  };
+  let mode = 'read';
+  const applyMode = next => {
+    mode = next;
+    document.body.classList.toggle('dq-mobile-read', next === 'read');
+    document.body.classList.toggle('dq-mobile-code', next === 'code');
+    document.querySelectorAll('#dq-mobile-toggle button').forEach(btn => {
+      btn.dataset.active = String(btn.dataset.mode === next);
+    });
 
-  const ancestry = (el, limit = 8) => {
-    const out = [];
-    let node = el;
-    for (let i = 0; node && i < limit; i++, node = node.parentElement) {
-      out.push(describe(node));
+    if (next === 'read') {
+      requestAnimationFrame(() => getInstruction()?.scrollIntoView({ block: 'start' }));
+    } else {
+      requestAnimationFrame(() => {
+        getCodePane()?.scrollIntoView({ block: 'start' });
+        refreshEditor();
+      });
     }
-    return out;
   };
 
-  const viewport = () => ({
-    innerWidth: window.innerWidth,
-    innerHeight: window.innerHeight,
-    scrollX: window.scrollX,
-    scrollY: window.scrollY,
-    devicePixelRatio: window.devicePixelRatio,
-    orientation: screen.orientation?.type || null,
-    visualViewport: window.visualViewport ? {
-      width: Math.round(window.visualViewport.width),
-      height: Math.round(window.visualViewport.height),
-      offsetLeft: Math.round(window.visualViewport.offsetLeft),
-      offsetTop: Math.round(window.visualViewport.offsetTop),
-      pageLeft: Math.round(window.visualViewport.pageLeft),
-      pageTop: Math.round(window.visualViewport.pageTop),
-      scale: window.visualViewport.scale
-    } : null
-  });
+  const mount = () => {
+    if (!document.body || document.getElementById('dq-mobile-toggle')) return;
+    if (!getInstruction() || !getEditor()) return;
 
-  const buildReport = () => {
-    const pane2 = document.querySelector(S.pane2);
-    const root = document.querySelector(S.editorRoot);
-    const cmHost = document.querySelector(S.editor);
-    const scroll = document.querySelector(S.editorScroll);
-    const cm = cmHost?.CodeMirror || scroll?.closest('.CodeMirror')?.CodeMirror || null;
-
-    return {
-      version: VERSION,
-      url: location.href,
-      viewport: viewport(),
-      pane2: describe(pane2),
-      editorRoot: describe(root),
-      codeMirror: describe(cmHost),
-      codeMirrorScroll: describe(scroll),
-      activeElement: describe(document.activeElement),
-      codeMirrorInstance: cm ? {
-        exists: true,
-        hasRefresh: typeof cm.refresh === 'function',
-        hasSetSize: typeof cm.setSize === 'function',
-        valueLength: typeof cm.getValue === 'function' ? cm.getValue().length : null
-      } : { exists: false },
-      pane2Ancestors: ancestry(pane2),
-      editorAncestors: ancestry(root),
-      codeMirrorAncestors: ancestry(cmHost)
+    const wrap = document.createElement('div');
+    wrap.id = 'dq-mobile-toggle';
+    const make = (label, value) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.dataset.mode = value;
+      b.addEventListener('click', () => applyMode(value));
+      return b;
     };
+    wrap.append(make('READ', 'read'), make('CODE', 'code'));
+    document.documentElement.appendChild(wrap);
+    applyMode('read');
   };
 
-  const panel = document.createElement('div');
-  panel.id = 'dq-mobile-diag';
-  const row = document.createElement('div');
-  row.className = 'dq-row';
-  const output = document.createElement('pre');
-  output.textContent = `DQ ${VERSION}\nTap Capture while the CODE view is blank.`;
-
-  const button = (label, fn) => {
-    const b = document.createElement('button');
-    b.textContent = label;
-    b.addEventListener('click', fn);
-    return b;
+  const ensureContinue = () => {
+    const btn = [...document.querySelectorAll('button, a')]
+      .find(el => /continue here/i.test((el.innerText || el.textContent || '').trim()));
+    if (btn && !btn.dataset.dqAutoClicked) {
+      btn.dataset.dqAutoClicked = '1';
+      btn.click();
+    }
   };
 
-  const capture = () => {
-    const report = buildReport();
-    const text = JSON.stringify(report, null, 2);
-    output.textContent = text;
-    window.__DQ_MOBILE_LAST_REPORT = text;
-    console.log('[DQ Mobile diagnostic]', report);
-    return text;
+  const boot = () => {
+    ensureContinue();
+    mount();
   };
 
-  row.append(
-    button('Capture', capture),
-    button('Copy Report', async () => {
-      const text = window.__DQ_MOBILE_LAST_REPORT || capture();
-      try {
-        await navigator.clipboard.writeText(text);
-        output.textContent = 'Copied.\n\n' + text;
-      } catch {
-        prompt('Copy diagnostic report:', text);
-      }
-    }),
-    button('Hide', () => { panel.style.display = 'none'; })
-  );
-  panel.append(row, output);
-  document.documentElement.appendChild(panel);
+  const observer = new MutationObserver(boot);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
 
+  window.addEventListener('resize', () => {
+    if (mode === 'code') refreshEditor();
+  }, { passive: true });
+  window.visualViewport?.addEventListener('resize', () => {
+    if (mode === 'code') refreshEditor();
+  }, { passive: true });
+
+  boot();
   console.log(`[DQ Mobile] ${VERSION} loaded`);
 })();
