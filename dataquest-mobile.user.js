@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.5.1
+// @version      0.6.0
 // @description  Reliable Android shell for Dataquest with a native editor and READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,18 +11,21 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.5.1';
+  const VERSION = '0.6.0';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
   const state = { mode:'read', textarea:null, status:null, timer:0, route:'', initialized:'' };
   const own = e => e?.closest?.('[data-dq-mobile-ui]');
   const label = e => (e?.innerText || e?.textContent || e?.getAttribute?.('aria-label') || '').trim();
+  const rendered = e => {if(!e?.isConnected)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.pointerEvents!=='none';};
   const adapter = {
-    instructions: () => document.querySelector('[data-dq-instructions],[data-testid*="instruction" i],div.SplitPane.vertical>div.Pane.vertical.Pane1 .dq-overflow-y-auto'),
+    instructions: () => document.querySelector('div.SplitPane.vertical>div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto') || document.querySelector('[data-dq-instructions],[data-testid*="instruction" i]'),
     readPane() { const e=this.instructions(); return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane1,[data-testid*="instruction-pane" i]') || e; },
     editorHost() {
+      const canonical=document.querySelector('#editor_with_extra .CodeMirror,#editor_with_extra .cm-editor');
+      if(canonical&&this.editor(canonical))return canonical;
       const all=[...document.querySelectorAll('.CodeMirror,.cm-editor,[data-testid*="editor" i] [role="textbox"]')].filter(e=>!own(e));
-      return all.find(e=>this.editor(e)) || all.find(e=>e.matches('.CodeMirror,.cm-editor')) || null;
+      return all.find(e=>this.editor(e)) || canonical || null;
     },
     editor(host=this.editorHost()) {
       if (!host) return null;
@@ -34,8 +37,11 @@
     },
     codePane() { const e=this.editorHost(); return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane2,[data-testid*="workspace" i]') || e; },
     action(kind) {
-      const re=kind==='run'?/\brun(?:\s+code)?\b/i:/\bsubmit(?:\s+answer)?\b/i;
-      return [...document.querySelectorAll('button,[role="button"]')].filter(e=>!own(e)&&!e.disabled).find(e=>re.test(label(e)));
+      const re=kind==='run'?/^run(?:\s+code)?$/i:/^submit(?:\s+answer)?$/i, pane=this.codePane();
+      return [...document.querySelectorAll('button,[role="button"]')]
+        .filter(e=>!own(e)&&re.test(label(e).replace(/\s+/g,' '))&&!e.disabled&&e.getAttribute('aria-disabled')!=='true'&&!e.closest('[inert],[aria-disabled="true"]')&&rendered(e))
+        .map(e=>({e,score:(pane?.contains(e)?1000:0)+(e.matches('button')?100:0)+(label(e).toLowerCase()===(kind==='run'?'run code':'submit answer')?20:0)}))
+        .sort((a,b)=>b.score-a.score)[0]?.e || null;
     },
     read() { const x=this.editor(); return typeof x?.api.getValue==='function'?x.api.getValue():x?.api.state?.doc?.toString?.() || ''; },
     write(value) {
@@ -79,10 +85,14 @@
     if(next==='code')requestAnimationFrame(()=>state.textarea?.focus({preventScroll:true}));
     if(next==='read')requestAnimationFrame(()=>adapter.instructions()?.scrollIntoView({block:'start'}));
   };
-  const act=kind=>{
-    if(!sync())return; const target=adapter.action(kind);
-    if(!target)return status(`${kind==='run'?'Run':'Submit'} control not found`,true);
-    status(kind==='run'?'Running…':'Submitting…'); target.click(); requestAnimationFrame(()=>mode('dq'));
+  const act=async kind=>{
+    if(!sync())return;status(kind==='run'?'Preparing run…':'Preparing submit…');mode('dq');
+    let target=null;
+    for(let attempt=0;attempt<20&&!target;attempt++){await new Promise(resolve=>setTimeout(resolve,50));target=adapter.action(kind);}
+    if(!target)return status(`${kind==='run'?'Run':'Submit'} control unavailable`,true);
+    let received=false;const confirm=event=>{if(event.composedPath().includes(target))received=true;};
+    document.addEventListener('click',confirm,true);target.click();document.removeEventListener('click',confirm,true);
+    status(received?(kind==='run'?'Run Code activated':'Submit Answer activated'):`${kind==='run'?'Run':'Submit'} click was blocked`,!received);
   };
   const button=(text,fn,data={})=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.dataset,data);b.addEventListener('click',fn);return b;};
   const mount=()=>{
@@ -97,7 +107,7 @@
   };
   const styles=()=>{
     if(document.querySelector('#dq-mobile-style'))return;const s=document.createElement('style');s.id='dq-mobile-style';s.dataset.dqMobileUi='style';s.textContent=`
-html,body{overflow-x:hidden!important}[data-dq-mobile-region]{box-sizing:border-box!important}@media(max-width:800px){body[data-dq-mobile-mode=read] [data-dq-mobile-region=read]{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;position:relative!important;left:0!important;transform:none!important;padding-bottom:80px!important}body[data-dq-mobile-mode=read] [data-dq-mobile-region=dq],body[data-dq-mobile-mode=dq] [data-dq-mobile-region=read]{display:none!important}body[data-dq-mobile-mode=dq] [data-dq-mobile-region=dq]{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;min-width:0!important;position:relative!important;left:0!important;transform:none!important}}
+html,body{overflow-x:hidden!important}[data-dq-mobile-region]{box-sizing:border-box!important}body[data-dq-mobile-mode=read] [data-dq-mobile-region=read]{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;position:relative!important;left:0!important;transform:none!important;padding-bottom:80px!important}body[data-dq-mobile-mode=read] [data-dq-mobile-region=dq],body[data-dq-mobile-mode=dq] [data-dq-mobile-region=read]{display:none!important}body[data-dq-mobile-mode=dq] [data-dq-mobile-region=dq]{display:block!important;visibility:visible!important;width:100%!important;max-width:100%!important;min-width:0!important;position:relative!important;left:0!important;transform:none!important}
 #dq-mobile-dock{position:fixed!important;right:8px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;z-index:2147483647!important;display:flex!important;gap:5px!important;padding:5px!important;border-radius:12px!important;background:#111827f5!important;box-shadow:0 4px 18px #0008!important}body[data-dq-mobile-mode=code] #dq-mobile-dock{display:none!important}[data-dq-mobile-ui] button{border:0!important;border-radius:8px!important;padding:9px 10px!important;color:#fff!important;background:#374151!important;font:700 12px/1 system-ui,sans-serif!important;min-height:34px!important}[data-dq-mobile-ui] button[data-active=true]{background:#2563eb!important}
 #dq-native-editor-shell{position:fixed!important;inset:64px 0 auto 0!important;height:calc(var(--dq-vv-height,100dvh) - 64px)!important;z-index:2147483645!important;display:none!important;background:#111318!important;color:#fff!important;overflow:hidden!important;box-sizing:border-box!important}body[data-dq-mobile-mode=code] #dq-native-editor-shell{display:block!important}.dq-native-top,.dq-native-bottom{position:absolute!important;left:0!important;right:0!important;height:48px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;box-sizing:border-box!important;background:#1f2937!important;z-index:2!important}.dq-native-top{top:0!important;border-bottom:1px solid #374151!important}.dq-native-bottom{bottom:0!important;justify-content:flex-end!important;border-top:1px solid #374151!important}.dq-native-status{flex:1!important;min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#cbd5e1!important;font:600 11px/1.2 system-ui,sans-serif!important}.dq-native-status[data-error=true]{color:#fca5a5!important}
 #dq-native-editor{position:absolute!important;inset:48px 0!important;width:100%!important;height:auto!important;margin:0!important;border:0!important;border-radius:0!important;outline:none!important;resize:none!important;box-sizing:border-box!important;padding:14px!important;background:#111318!important;color:#f8fafc!important;caret-color:#fff!important;font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;white-space:pre!important;overflow:auto!important;tab-size:2!important;-webkit-user-select:text!important;user-select:text!important}[data-action=run]{background:#0f766e!important}[data-action=submit]{background:#2563eb!important}`;document.head.appendChild(s);

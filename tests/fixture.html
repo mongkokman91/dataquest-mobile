@@ -5,10 +5,21 @@
   <header style="height:64px">Dataquest lesson</header>
   <main id="app"></main>
   <script>
-    window.fixture = { runs: [], submits: [], cmChanges: 0 };
+    window.fixture = { runs: [], submits: [], decoyClicks: 0, controlClicks: [], cmChanges: 0 };
     window.renderLesson = ({ value = 'print("starter")', variant = 'classic' } = {}) => {
       const app = document.querySelector('#app');
-      app.innerHTML = variant === 'classic' ? `
+      app.innerHTML = variant === 'adversarial' ? `
+        <div class="SplitPane vertical" style="display:flex">
+          <div class="Pane vertical Pane1"><div class="dq-px-10 dq-pb-3 dq-overflow-y-auto" data-dq-instructions>
+            <h1>Instructions</h1><p>Do not run this decoy.</p><div class="CodeMirror" data-static-example></div>
+            <button data-decoy-action="run" style="display:none">Run Code</button><button data-decoy-action="submit" style="display:none">Submit Answer</button>
+          </div></div>
+          <div class="Pane vertical Pane2"><div class="SplitPane horizontal">
+            <div class="Pane horizontal Pane1" data-dq-results>Ready</div>
+            <div class="Pane horizontal Pane2"><div id="editor_with_extra"><div class="CodeMirror"><div class="CodeMirror-code" contenteditable="true"></div></div></div></div>
+          </div>
+          <div data-action-bar><button data-real-action="run" disabled><span>Run Code</span></button><button data-real-action="submit" disabled><span>Submit Answer</span></button></div></div>
+        </div>` : variant === 'classic' ? `
         <div class="SplitPane vertical" style="display:flex">
           <div class="Pane vertical Pane1"><div class="dq-px-10 dq-pb-3 dq-overflow-y-auto" data-dq-instructions><h1>Instructions</h1><p>Solve the exercise.</p></div></div>
           <div class="Pane vertical Pane2"><div class="SplitPane horizontal"><div class="Pane horizontal Pane1">
@@ -24,20 +35,30 @@
           <div class="CodeMirror"><div class="CodeMirror-code" contenteditable="true"></div></div>
           <output data-dq-results>Ready</output><button data-action="run">Run Code</button><button data-action="submit">Submit Answer</button>
         </main>`;
-      const host = app.querySelector('.CodeMirror, .cm-editor');
+      const host = app.querySelector('#editor_with_extra .CodeMirror, .cm-editor, .CodeMirror:not([data-static-example])');
       let editorValue = value;
       const cm = {
         getValue: () => editorValue,
-        setValue: next => { editorValue = next; window.fixture.cmChanges++; host.dispatchEvent(new CustomEvent('change', { detail: next })); },
+        setValue: next => {
+          editorValue = next; window.fixture.cmChanges++; host.dispatchEvent(new CustomEvent('change', { detail: next }));
+          setTimeout(() => app.querySelectorAll('[data-real-action]').forEach(button => button.disabled = false), 30);
+        },
         save: () => {}, refresh: () => {}
       };
       host.CodeMirror = cm;
-      app.querySelector('[data-action="run"], [aria-label="Run code"]').addEventListener('click', () => {
+      app.querySelectorAll('[data-decoy-action]').forEach(button => button.addEventListener('click', () => window.fixture.decoyClicks++));
+      const runButton = app.querySelector('[data-real-action="run"], [data-action="run"], [aria-label="Run code"]');
+      const submitButton = app.querySelector('[data-real-action="submit"], [data-action="submit"], [aria-label="Submit answer"]');
+      runButton.addEventListener('click', event => {
+        window.fixture.controlClicks.push({ kind: 'run', disabled: event.currentTarget.disabled, value: editorValue });
         window.fixture.runs.push(editorValue);
         const result = app.querySelector('[data-dq-results], [data-testid="run-result"]');
         result.textContent = `Ran: ${editorValue}`;
       });
-      app.querySelector('[data-action="submit"], [aria-label="Submit answer"]').addEventListener('click', () => window.fixture.submits.push(editorValue));
+      submitButton.addEventListener('click', event => {
+        window.fixture.controlClicks.push({ kind: 'submit', disabled: event.currentTarget.disabled, value: editorValue });
+        window.fixture.submits.push(editorValue);
+      });
     };
     renderLesson();
   </script>
