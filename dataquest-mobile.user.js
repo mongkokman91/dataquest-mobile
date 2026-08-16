@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.8.0
+// @version      0.8.1
 // @description  Reliable Android shell for Dataquest with a native editor and READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.8.0';
+  const VERSION = '0.8.1';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -98,6 +98,14 @@
     if(next==='code')requestAnimationFrame(()=>state.textarea?.focus({preventScroll:true}));
     if(next==='read')requestAnimationFrame(()=>adapter.instructions()?.scrollIntoView({block:'start'}));
   };
+  const replaceStaleUi=()=>{
+    const shell=document.querySelector('#dq-native-editor-shell');
+    if(!shell||shell.dataset.dqMobileVersion===VERSION)return;
+    shell.remove();
+    document.querySelector('#dq-mobile-dock')?.remove();
+    document.querySelector('#dq-mobile-toast')?.remove();
+    document.querySelector('#dq-mobile-style')?.remove();
+  };
   // A dispatched 'click' always bubbles to a document-level capture listener
   // regardless of whether Dataquest's own handler ran, so that alone can never
   // prove the action reached the app. Two independent signals replace it:
@@ -141,13 +149,13 @@
   const button=(text,fn,data={})=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.dataset,data);b.addEventListener('click',fn);return b;};
   const mount=()=>{
     if(!document.body||document.querySelector('#dq-native-editor-shell'))return;
-    const shell=document.createElement('section');shell.id='dq-native-editor-shell';shell.dataset.dqMobileUi='shell';
+    const shell=document.createElement('section');shell.id='dq-native-editor-shell';shell.dataset.dqMobileUi='shell';shell.dataset.dqMobileVersion=VERSION;
     const top=document.createElement('div');top.className='dq-native-top';top.append(button('READ',()=>mode('read')),button('DQ VIEW',()=>mode('dq')));
     state.textarea=document.createElement('textarea');state.textarea.id='dq-native-editor';state.textarea.setAttribute('aria-label','Dataquest mobile code editor');state.textarea.setAttribute('autocomplete','off');state.textarea.setAttribute('autocapitalize','off');state.textarea.spellcheck=false;
     state.textarea.addEventListener('input',()=>{try{localStorage.setItem(key(),state.textarea.value);}catch(_){status('Draft storage unavailable',true);}status('Draft saved');clearTimeout(state.timer);state.timer=setTimeout(()=>sync(true),150);});
     state.textarea.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();state.textarea.setRangeText('  ',state.textarea.selectionStart,state.textarea.selectionEnd,'end');state.textarea.dispatchEvent(new Event('input',{bubbles:true}));}});
     const bottom=document.createElement('div');bottom.className='dq-native-bottom';bottom.append(button('RUN',()=>act('run'),{action:'run'}),button('SUBMIT',()=>act('submit'),{action:'submit'}));shell.append(top,state.textarea,bottom);
-    const dock=document.createElement('nav');dock.id='dq-mobile-dock';dock.dataset.dqMobileUi='dock';dock.setAttribute('aria-label','Dataquest mobile views');dock.append(button('READ',()=>mode('read'),{mode:'read'}),button('CODE',()=>mode('code'),{mode:'code'}),button('DQ',()=>mode('dq'),{mode:'dq'}));
+    const dock=document.createElement('nav');dock.id='dq-mobile-dock';dock.dataset.dqMobileUi='dock';dock.dataset.dqMobileVersion=VERSION;dock.setAttribute('aria-label','Dataquest mobile views');dock.append(button('READ',()=>mode('read'),{mode:'read'}),button('CODE',()=>mode('code'),{mode:'code'}),button('DQ',()=>mode('dq'),{mode:'dq'}));
     state.toast=document.createElement('output');state.toast.id='dq-mobile-toast';state.toast.dataset.dqMobileUi='toast';state.toast.setAttribute('aria-live','polite');state.toast.hidden=true;
     document.body.append(shell,dock,state.toast);
   };
@@ -160,6 +168,6 @@ html,body{overflow-x:hidden!important}[data-dq-mobile-region]{box-sizing:border-
 #dq-mobile-toast{position:fixed!important;left:50%!important;top:max(8px,env(safe-area-inset-top))!important;transform:translateX(-50%)!important;max-width:min(92vw,520px)!important;z-index:2147483646!important;padding:9px 14px!important;border-radius:10px!important;background:#111827f5!important;color:#e2e8f0!important;font:600 12px/1.3 system-ui,sans-serif!important;box-shadow:0 4px 18px #0008!important;text-align:center!important}#dq-mobile-toast[data-error=true]{color:#fca5a5!important}#dq-mobile-toast[hidden]{display:none!important}`;document.head.appendChild(s);
   };
   const viewport=()=>document.documentElement.style.setProperty('--dq-vv-height',`${Math.round(window.visualViewport?.height||innerHeight)}px`);
-  const boot=()=>{styles();mount();viewport();const routeChanged=state.route!==key();if(routeChanged){state.route=key();state.initialized='';}mark();if(document.body&&!document.body.dataset.dqMobileMode)mode(state.mode);else if(routeChanged&&state.mode==='code')initialize();const resume=[...document.querySelectorAll('button,a')].find(e=>!own(e)&&/continue here/i.test(label(e)));if(resume&&!resume.dataset.dqAutoClicked){resume.dataset.dqAutoClicked='1';resume.click();}};
+  const boot=()=>{replaceStaleUi();styles();mount();viewport();const routeChanged=state.route!==key();if(routeChanged){state.route=key();state.initialized='';}mark();if(document.body&&!document.body.dataset.dqMobileMode)mode(state.mode);else if(routeChanged&&state.mode==='code')initialize();const resume=[...document.querySelectorAll('button,a')].find(e=>!own(e)&&/continue here/i.test(label(e)));if(resume&&!resume.dataset.dqAutoClicked){resume.dataset.dqAutoClicked='1';resume.click();}};
   new MutationObserver(boot).observe(document.documentElement,{childList:true,subtree:true});addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('scroll',viewport,{passive:true});boot();console.info(`[DQ Mobile] ${VERSION} ready`);
 })();
