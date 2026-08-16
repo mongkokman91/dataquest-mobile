@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.1');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.2');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -50,6 +50,7 @@ test('unknown or incomplete Dataquest layouts remain untouched and visible', asy
   await expect(changed).toBeVisible();
   await page.getByRole('button', { name: 'READ', exact: true }).click();
   await expect(changed).toBeVisible();
+  await expect(page.locator('#dq-mobile-toast')).toBeHidden();
 });
 
 test('SPA lesson navigation loads a route-specific editor without stale code', async ({ page }) => {

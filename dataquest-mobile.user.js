@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.9.1
+// @version      0.9.2
 // @description  Reliable Android split workspace for Dataquest with READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.9.1';
+  const VERSION = '0.9.2';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -94,7 +94,6 @@
     document.querySelectorAll('[data-dq-mobile-region]').forEach(e=>e.removeAttribute('data-dq-mobile-region'));
     const read=adapter.readPane(), dq=adapter.codePane();
     if(!read||!dq||read===dq||read.contains(dq)||dq.contains(read)){
-      if(state.toast)status('Layout unchanged: Dataquest regions are uncertain',true);
       return false;
     }
     read.setAttribute('data-dq-mobile-region','read');dq.setAttribute('data-dq-mobile-region','dq');return true;
