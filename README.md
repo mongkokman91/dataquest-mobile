@@ -12,7 +12,9 @@ The hosted userscript injects three views:
 
 Editor integration is isolated in a capability-based adapter. It discovers CodeMirror 5 or CodeMirror 6 APIs by behavior, synchronizes the native draft before every action, and then clicks Dataquest's visible Run or Submit control. A mutation observer re-detects regions and editor instances after React rerenders or lesson navigation. Drafts contain code only and are scoped to `location.pathname`.
 
-Page-region transformations are mobile-only. Before applying them, the script verifies that instruction and workspace regions both exist and are disjoint. If the layout is missing, shared, nested, or otherwise uncertain, Dataquest's page remains untouched and visible. Desktop Dataquest keeps its native layout.
+Before applying page-region transformations, the script verifies that instruction and workspace regions both exist and are disjoint. If the layout is missing, shared, nested, or otherwise uncertain, Dataquest's page remains untouched and visible.
+
+RUN and SUBMIT synchronize the native draft first, expose DQ view, then select an exact, rendered, enabled control from the detected execution workspace. This avoids hidden duplicate controls and waits briefly for Dataquest to update disabled state after an editor change.
 
 Runtime status is shown at the top of CODE view. A missing editor or action control produces a visible error instead of silently losing code.
 

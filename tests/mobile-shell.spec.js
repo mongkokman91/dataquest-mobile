@@ -65,6 +65,46 @@ test('READ CODE DQ READ remains nonblank across repeated cycles', async ({ page 
   await expect(page.getByText('Solve the exercise.')).toBeVisible();
 });
 
+test('RUN and SUBMIT target enabled workspace controls after synchronization', async ({ page }, testInfo) => {
+  await openLesson(page, '/mission/actions/screen/1', 'adversarial');
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  const editor = page.getByLabel('Dataquest mobile code editor');
+  await editor.fill('current_answer = 42');
+  await page.getByRole('button', { name: 'RUN', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.runs.at(-1))).toBe('current_answer = 42');
+  expect(await page.evaluate(() => window.fixture.decoyClicks)).toBe(0);
+  await expect(page.getByText('Ran: current_answer = 42')).toBeVisible();
+  await testInfo.attach('run-state.json', {
+    body: JSON.stringify(await page.evaluate(() => window.fixture), null, 2), contentType: 'application/json'
+  });
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await editor.fill('current_answer = 43');
+  await page.getByRole('button', { name: 'SUBMIT', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.submits.at(-1))).toBe('current_answer = 43');
+  expect(await page.evaluate(() => window.fixture.decoyClicks)).toBe(0);
+  expect(await page.evaluate(() => window.fixture.controlClicks)).toEqual([
+    { kind: 'run', disabled: false, value: 'current_answer = 42' },
+    { kind: 'submit', disabled: false, value: 'current_answer = 43' }
+  ]);
+});
+
+test('READ and DQ expose distinct instruction and execution regions', async ({ page }) => {
+  await openLesson(page, '/mission/actions/screen/1', 'adversarial');
+  const instructions = page.locator('[data-dq-instructions]');
+  const results = page.locator('[data-dq-results]');
+  await expect(instructions).toBeVisible();
+  await expect(results).toBeHidden();
+  await page.getByRole('button', { name: 'DQ', exact: true }).click();
+  await expect(instructions).toBeHidden();
+  await expect(results).toBeVisible();
+  const boxes = await page.evaluate(() => ({
+    read: document.querySelector('[data-dq-instructions]').getBoundingClientRect().toJSON(),
+    dq: document.querySelector('[data-dq-results]').getBoundingClientRect().toJSON()
+  }));
+  expect(boxes.dq.width).toBeGreaterThan(0);
+  expect(boxes.dq.height).toBeGreaterThan(0);
+});
+
 test('READ and CODE remain usable through repeated switching without duplicate UI', async ({ page }) => {
   await openLesson(page);
   await expect(page.getByText('Solve the exercise.')).toBeVisible();
