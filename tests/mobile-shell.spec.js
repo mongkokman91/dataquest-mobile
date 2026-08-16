@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.2');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.3');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -97,6 +97,19 @@ test('CODE keeps lesson context above a bottom-half editor and actions', async (
   expect(boxes.read.bottom).toBeLessThanOrEqual(boxes.code.top + 1);
   expect(boxes.code.top).toBeGreaterThan(boxes.viewport.height * 0.45);
   expect(boxes.code.top).toBeLessThan(boxes.viewport.height * 0.55);
+});
+
+test('native Chandra explanation view temporarily replaces the mobile workspace', async ({ page }) => {
+  await openLesson(page);
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test><span>Chat with Chandra AI</span><p>Explanation is visible.</p></section>'));
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
+  await expect(page.getByText('Explanation is visible.')).toBeVisible();
+  await expect(page.locator('#dq-native-editor-shell')).toBeHidden();
+  await expect(page.locator('#dq-mobile-dock')).toBeHidden();
+  await page.evaluate(() => document.querySelector('[data-chandra-test]').remove());
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'false');
+  await expect(page.locator('#dq-native-editor-shell')).toBeVisible();
 });
 
 test('RUN and SUBMIT target enabled workspace controls after synchronization', async ({ page }, testInfo) => {

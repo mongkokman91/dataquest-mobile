@@ -1,6 +1,6 @@
 {
   "name": "dataquest-mobile",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
   "scripts": {
     "test": "playwright test",

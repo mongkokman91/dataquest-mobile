@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.9.2
+// @version      0.9.3
 // @description  Reliable Android split workspace for Dataquest with READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.9.2';
+  const VERSION = '0.9.3';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -172,9 +172,11 @@ body[data-dq-mobile-mode=code] [data-dq-mobile-region=read],body[data-dq-mobile-
 #dq-mobile-dock{position:fixed!important;right:8px!important;bottom:max(8px,env(safe-area-inset-bottom))!important;z-index:2147483647!important;display:flex!important;gap:5px!important;padding:5px!important;border-radius:12px!important;background:#111827f5!important;box-shadow:0 4px 18px #0008!important}body[data-dq-mobile-mode=code] #dq-mobile-dock{display:none!important}[data-dq-mobile-ui] button{border:0!important;border-radius:8px!important;padding:9px 10px!important;color:#fff!important;background:#374151!important;font:700 12px/1 system-ui,sans-serif!important;min-height:34px!important}[data-dq-mobile-ui] button[data-active=true]{background:#2563eb!important}
 #dq-native-editor-shell{position:fixed!important;inset:var(--dq-vv-half,50dvh) 0 auto 0!important;height:calc(var(--dq-vv-height,100dvh) - var(--dq-vv-half,50dvh))!important;z-index:2147483645!important;display:none!important;background:#111318!important;color:#fff!important;overflow:hidden!important;box-sizing:border-box!important}body[data-dq-mobile-mode=code] #dq-native-editor-shell{display:block!important}.dq-native-top,.dq-native-bottom{position:absolute!important;left:0!important;right:0!important;height:48px!important;display:flex!important;align-items:center!important;gap:6px!important;padding:6px 8px!important;box-sizing:border-box!important;background:#1f2937!important;z-index:2!important}.dq-native-top{top:0!important;border-bottom:1px solid #374151!important}.dq-native-bottom{bottom:0!important;justify-content:flex-end!important;border-top:1px solid #374151!important}
 #dq-native-editor{position:absolute!important;inset:48px 0!important;width:100%!important;height:auto!important;margin:0!important;border:0!important;border-radius:0!important;outline:none!important;resize:none!important;box-sizing:border-box!important;padding:14px!important;background:#111318!important;color:#f8fafc!important;caret-color:#fff!important;font:16px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;white-space:pre!important;overflow:auto!important;tab-size:2!important;-webkit-user-select:text!important;user-select:text!important}[data-action=run]{background:#0f766e!important}[data-action=submit]{background:#2563eb!important}
+body[data-dq-mobile-overlay=true] [data-dq-mobile-region],body[data-dq-mobile-overlay=true] #dq-native-editor-shell,body[data-dq-mobile-overlay=true] #dq-mobile-dock,body[data-dq-mobile-overlay=true] #dq-mobile-toast{display:none!important}
 #dq-mobile-toast{position:fixed!important;left:50%!important;top:max(8px,env(safe-area-inset-top))!important;transform:translateX(-50%)!important;max-width:min(92vw,520px)!important;z-index:2147483646!important;padding:9px 14px!important;border-radius:10px!important;background:#111827f5!important;color:#e2e8f0!important;font:600 12px/1.3 system-ui,sans-serif!important;box-shadow:0 4px 18px #0008!important;text-align:center!important}#dq-mobile-toast[data-error=true]{color:#fca5a5!important}#dq-mobile-toast[hidden]{display:none!important}`;document.head.appendChild(s);
   };
   const viewport=()=>{const height=Math.round(window.visualViewport?.height||innerHeight);document.documentElement.style.setProperty('--dq-vv-height',`${height}px`);document.documentElement.style.setProperty('--dq-vv-half',`${Math.round(height/2)}px`);};
-  const boot=()=>{replaceStaleUi();styles();mount();viewport();const routeChanged=state.route!==key();if(routeChanged){state.route=key();state.initialized='';}mark();if(document.body&&!document.body.dataset.dqMobileMode)mode(state.mode);else if(routeChanged&&state.mode==='code')initialize();const resume=[...document.querySelectorAll('button,a')].find(e=>!own(e)&&/continue here/i.test(label(e)));if(resume&&!resume.dataset.dqAutoClicked){resume.dataset.dqAutoClicked='1';resume.click();}};
+  const chandraOpen=()=>[...document.querySelectorAll('span')].some(e=>e.textContent?.trim()==='Chat with Chandra AI');
+  const boot=()=>{replaceStaleUi();styles();mount();viewport();const overlay=chandraOpen();if(document.body)document.body.dataset.dqMobileOverlay=String(overlay);if(overlay)return;const routeChanged=state.route!==key();if(routeChanged){state.route=key();state.initialized='';}mark();if(document.body&&!document.body.dataset.dqMobileMode)mode(state.mode);else if(routeChanged&&state.mode==='code')initialize();const resume=[...document.querySelectorAll('button,a')].find(e=>!own(e)&&/continue here/i.test(label(e)));if(resume&&!resume.dataset.dqAutoClicked){resume.dataset.dqAutoClicked='1';resume.click();}};
   new MutationObserver(boot).observe(document.documentElement,{childList:true,subtree:true});addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('scroll',viewport,{passive:true});boot();console.info(`[DQ Mobile] ${VERSION} ready`);
 })();
