@@ -1,17 +1,23 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.7.0
+// @version      0.8.0
 // @description  Reliable Android shell for Dataquest with a native editor and READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
 // @downloadURL  https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
 // @run-at       document-idle
-// @grant        none
+// @grant        unsafeWindow
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.7.0';
+  const VERSION = '0.8.0';
+  // Android userscript managers commonly isolate script globals from the page.
+  // CodeMirror 5 stores its live instance as a DOM expando, so querying through
+  // the sandboxed window returns the element but not `element.CodeMirror`.
+  // unsafeWindow gives the adapter the same objects Dataquest's React app uses.
+  const pageWindow = typeof unsafeWindow === 'object' ? unsafeWindow : window;
+  const pageDocument = pageWindow.document;
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
   const state = { mode:'read', textarea:null, toast:null, hideTimer:0, timer:0, route:'', initialized:'' };
@@ -22,9 +28,9 @@
     instructions: () => document.querySelector('div.SplitPane.vertical>div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto') || document.querySelector('[data-dq-instructions],[data-testid*="instruction" i]'),
     readPane() { const e=this.instructions(); return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane1,[data-testid*="instruction-pane" i]') || e; },
     editorHost() {
-      const canonical=document.querySelector('#editor_with_extra .CodeMirror,#editor_with_extra .cm-editor');
+      const canonical=pageDocument.querySelector('#editor_with_extra .CodeMirror,#editor_with_extra .cm-editor');
       if(canonical&&this.editor(canonical))return canonical;
-      const all=[...document.querySelectorAll('.CodeMirror,.cm-editor,[data-testid*="editor" i] [role="textbox"]')].filter(e=>!own(e));
+      const all=[...pageDocument.querySelectorAll('.CodeMirror,.cm-editor,[data-testid*="editor" i] [role="textbox"]')].filter(e=>!own(e));
       return all.find(e=>this.editor(e)) || canonical || null;
     },
     editor(host=this.editorHost()) {
@@ -50,7 +56,7 @@
         if (typeof x.api.setValue==='function') {
           if (x.api.getValue?.()!==value) x.api.setValue(value);
           x.api.save?.(); x.api.refresh?.();
-          x.host.dispatchEvent(new Event('input',{bubbles:true})); x.host.dispatchEvent(new Event('change',{bubbles:true}));
+          x.host.dispatchEvent(new pageWindow.Event('input',{bubbles:true})); x.host.dispatchEvent(new pageWindow.Event('change',{bubbles:true}));
           return x.api.getValue?.()===value;
         }
         if (typeof x.api.dispatch==='function' && x.api.state?.doc) {
@@ -100,13 +106,13 @@
   // real DOM mutation inside the execution workspace before success is claimed.
   const press=target=>{
     const r=target.getBoundingClientRect();
-    const point={clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true,cancelable:true,composed:true,view:window,button:0};
+    const point={clientX:r.left+r.width/2,clientY:r.top+r.height/2,bubbles:true,cancelable:true,composed:true,view:pageWindow,button:0};
     target.focus?.({preventScroll:true});
-    try{target.dispatchEvent(new PointerEvent('pointerdown',{...point,pointerId:1,pointerType:'touch',isPrimary:true}));}catch(_){}
-    target.dispatchEvent(new MouseEvent('mousedown',point));
-    try{target.dispatchEvent(new PointerEvent('pointerup',{...point,pointerId:1,pointerType:'touch',isPrimary:true}));}catch(_){}
-    target.dispatchEvent(new MouseEvent('mouseup',point));
-    target.click();
+    try{target.dispatchEvent(new pageWindow.PointerEvent('pointerdown',{...point,pointerId:1,pointerType:'touch',isPrimary:true}));}catch(_){}
+    target.dispatchEvent(new pageWindow.MouseEvent('mousedown',point));
+    try{target.dispatchEvent(new pageWindow.PointerEvent('pointerup',{...point,pointerId:1,pointerType:'touch',isPrimary:true}));}catch(_){}
+    target.dispatchEvent(new pageWindow.MouseEvent('mouseup',point));
+    pageWindow.HTMLElement.prototype.click.call(target);
   };
   const observeChange=root=>{
     if(!root)return{result:()=>false,stop:()=>{}};
