@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.0');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.1');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -239,13 +239,23 @@ test('RUN and SUBMIT reach touch-first Dataquest controls that never fire a plai
   await expect.poll(() => page.evaluate(() => window.fixture.submits.at(-1)), { timeout: 8000 }).toBe('current_answer = 43');
 });
 
-test('the run/submit result stays visible in DQ view instead of being hidden inside the CODE shell', async ({ page }) => {
+test('RUN keeps lesson context above a bottom-half Dataquest result pane', async ({ page }) => {
   await openLesson(page);
   await page.getByRole('button', { name: 'CODE', exact: true }).click();
   await page.getByLabel('Dataquest mobile code editor').fill('answer = 1');
   await page.getByRole('button', { name: 'RUN', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.fixture.runs.at(-1)), { timeout: 8000 }).toBe('answer = 1');
-  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-mode', 'dq');
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-mode', 'result');
+  await expect(page.locator('[data-dq-instructions]')).toBeVisible();
+  await expect(page.locator('[data-dq-results]')).toBeVisible();
+  const split = await page.evaluate(() => ({
+    read: document.querySelector('[data-dq-mobile-region="read"]').getBoundingClientRect().toJSON(),
+    result: document.querySelector('[data-dq-mobile-region="dq"]').getBoundingClientRect().toJSON(),
+    height: innerHeight
+  }));
+  expect(split.read.bottom).toBeLessThanOrEqual(split.result.top + 1);
+  expect(split.result.top).toBeGreaterThan(split.height * 0.45);
+  expect(split.result.top).toBeLessThan(split.height * 0.55);
   const toast = page.locator('#dq-mobile-toast');
   await expect(toast).toBeVisible();
   await expect(toast).toHaveAttribute('data-error', 'false');
