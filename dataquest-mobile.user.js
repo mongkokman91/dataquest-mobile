@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.8.1
+// @version      0.8.2
 // @description  Reliable Android shell for Dataquest with a native editor and READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.8.1';
+  const VERSION = '0.8.2';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -25,8 +25,8 @@
   const label = e => (e?.innerText || e?.textContent || e?.getAttribute?.('aria-label') || '').trim();
   const rendered = e => {if(!e?.isConnected)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.pointerEvents!=='none';};
   const adapter = {
-    instructions: () => document.querySelector('div.SplitPane.vertical>div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto') || document.querySelector('[data-dq-instructions],[data-testid*="instruction" i]'),
-    readPane() { const e=this.instructions(); return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane1,[data-testid*="instruction-pane" i]') || e; },
+    instructions: () => document.querySelector('#dqScrollTabsContent-Instructions') || document.querySelector('div.SplitPane.vertical>div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto') || document.querySelector('[data-dq-instructions],[data-testid*="instruction" i]'),
+    readPane() { const e=this.instructions(); return e?.closest('div.SplitPane.horizontal>div.Pane.horizontal.Pane1,div.SplitPane.vertical>div.Pane.vertical.Pane1,[data-testid*="instruction-pane" i]') || e; },
     editorHost() {
       const canonical=pageDocument.querySelector('#editor_with_extra .CodeMirror,#editor_with_extra .cm-editor');
       if(canonical&&this.editor(canonical))return canonical;
@@ -41,7 +41,11 @@
       }
       return null;
     },
-    codePane() { const e=this.editorHost(); return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane2,[data-testid*="workspace" i]') || e; },
+    codePane() {
+      const e=this.editorHost(), horizontal=e?.closest('div.SplitPane.horizontal>div.Pane.horizontal.Pane2'), read=this.readPane();
+      if(horizontal&&read?.parentElement===horizontal.parentElement)return horizontal;
+      return e?.closest('div.SplitPane.vertical>div.Pane.vertical.Pane2,[data-testid*="workspace" i]') || horizontal || e;
+    },
     action(kind) {
       const re=kind==='run'?/^run(?:\s+code)?$/i:/^submit(?:\s+answer)?$/i, pane=this.codePane(), read=this.readPane();
       return [...document.querySelectorAll('button,[role="button"]')]
@@ -54,7 +58,10 @@
       const x=this.editor(); if (!x) return false;
       try {
         if (typeof x.api.setValue==='function') {
-          if (x.api.getValue?.()!==value) x.api.setValue(value);
+          if (x.api.getValue?.()!==value) {
+            if(typeof x.api.replaceRange==='function'&&typeof x.api.posFromIndex==='function')x.api.replaceRange(value,{line:0,ch:0},x.api.posFromIndex(x.api.getValue().length),'+input');
+            else x.api.setValue(value);
+          }
           x.api.save?.(); x.api.refresh?.();
           x.host.dispatchEvent(new pageWindow.Event('input',{bubbles:true})); x.host.dispatchEvent(new pageWindow.Event('change',{bubbles:true}));
           return x.api.getValue?.()===value;

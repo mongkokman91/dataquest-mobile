@@ -39,6 +39,12 @@
       let editorValue = value;
       const cm = {
         getValue: () => editorValue,
+        posFromIndex: index => ({ line: 0, ch: index }),
+        replaceRange: (next, from, to, origin) => {
+          editorValue = next; window.fixture.cmChanges++; window.fixture.lastChangeOrigin = origin;
+          host.dispatchEvent(new CustomEvent('change', { detail: next }));
+          setTimeout(() => app.querySelectorAll('[data-real-action]').forEach(button => button.disabled = false), 30);
+        },
         setValue: next => {
           editorValue = next; window.fixture.cmChanges++; host.dispatchEvent(new CustomEvent('change', { detail: next }));
           setTimeout(() => app.querySelectorAll('[data-real-action]').forEach(button => button.disabled = false), 30);
