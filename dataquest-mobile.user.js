@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.3.6
-// @description  Diagnostic build for CodeMirror mutation/input on Dataquest Android.
+// @version      0.4.0
+// @description  Aggressive mobile shell for Dataquest: native Android editor + READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
 // @downloadURL  https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -13,7 +13,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3.6-codemirror-mutation-diagnostic';
+  const VERSION = '0.4.0-native-editor';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
@@ -21,190 +21,359 @@
     readPane: 'div.SplitPane.vertical > div.Pane.vertical.Pane1',
     codePane: 'div.SplitPane.vertical > div.Pane.vertical.Pane2',
     instruction: 'div.SplitPane.vertical > div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto',
-    innerSplit: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal',
-    innerPane1: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal > div.Pane.horizontal.Pane1',
-    innerPane2: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal > div.Pane.horizontal.Pane2',
-    editorRoot: '#editor_with_extra',
-    editor: '#editor_with_extra .CodeMirror',
-    editorScroll: '#editor_with_extra .CodeMirror-scroll'
+    cmHost: '#editor_with_extra .CodeMirror'
   };
 
-  ['dq-mobile-style','dq-mobile-toggle','dq-mobile-diag','dq-mobile-input-status'].forEach(id => document.getElementById(id)?.remove());
-  document.body?.classList.remove('dq-mobile-read','dq-mobile-code');
+  const IDS = ['dq-mobile-style','dq-mobile-dock','dq-native-editor-shell','dq-mobile-diag','dq-mobile-input-status','dq-mobile-input-diag'];
+  IDS.forEach(id => document.getElementById(id)?.remove());
+  document.body?.classList.remove('dq-mobile-read','dq-mobile-code','dq-mobile-dq','dq-native-read','dq-native-code','dq-native-dq');
+
+  let mode = 'read';
+  let syncTimer = null;
+  let textarea = null;
+  let statusEl = null;
+  let initializedDraft = false;
+
+  const draftKey = () => `dq-mobile-draft:${location.pathname}`;
+  const q = s => document.querySelector(s);
+  const getCM = () => q(S.cmHost)?.CodeMirror || null;
 
   const style = document.createElement('style');
   style.id = 'dq-mobile-style';
   style.textContent = `
     html, body { overflow-x:hidden !important; }
-    #dq-mobile-toggle { position:fixed!important; right:12px!important; bottom:14px!important; z-index:2147483647!important; display:flex!important; gap:6px!important; padding:6px!important; border-radius:12px!important; background:rgba(17,24,39,.96)!important; }
-    #dq-mobile-toggle button, #dq-mobile-diag button { border:0!important; border-radius:8px!important; padding:9px 11px!important; color:#fff!important; background:#374151!important; font:700 12px/1 system-ui,sans-serif!important; }
-    #dq-mobile-toggle button[data-active="true"] { background:#2563eb!important; }
-    #dq-mobile-diag { position:fixed!important; left:8px!important; right:8px!important; top:72px!important; z-index:2147483647!important; max-height:48vh!important; overflow:auto!important; background:rgba(17,24,39,.98)!important; color:#fff!important; border-radius:10px!important; padding:8px!important; font:11px/1.35 ui-monospace,monospace!important; }
-    #dq-mobile-diag pre { white-space:pre-wrap!important; word-break:break-word!important; }
-    body.dq-mobile-read ${S.readPane} { display:block!important; width:100%!important; max-width:100%!important; position:relative!important; left:0!important; }
-    body.dq-mobile-read ${S.codePane} { display:none!important; }
-    body.dq-mobile-read ${S.instruction} { width:100%!important; max-width:100%!important; padding-left:20px!important; padding-right:20px!important; padding-bottom:100px!important; box-sizing:border-box!important; }
-    body.dq-mobile-code ${S.readPane} { display:none!important; }
-    body.dq-mobile-code ${S.codePane} { display:block!important; width:100%!important; height:calc(100vh - 64px)!important; position:relative!important; left:0!important; overflow:hidden!important; }
-    body.dq-mobile-code ${S.innerSplit} { display:block!important; position:relative!important; width:100%!important; height:100%!important; min-height:100%!important; overflow:hidden!important; }
-    body.dq-mobile-code ${S.innerPane1} { display:none!important; }
-    body.dq-mobile-code ${S.innerSplit} > .Resizer { display:none!important; }
-    body.dq-mobile-code ${S.innerPane2} { display:block!important; position:absolute!important; inset:0!important; width:100%!important; height:100%!important; overflow:visible!important; }
-    body.dq-mobile-code ${S.innerPane2} .dq-panels,
-    body.dq-mobile-code ${S.innerPane2} .dq-dark,
-    body.dq-mobile-code ${S.innerPane2} > div,
-    body.dq-mobile-code ${S.innerPane2} > div > div { height:100%!important; min-height:0!important; }
-    body.dq-mobile-code ${S.editorRoot} { display:flex!important; position:absolute!important; inset:0!important; width:100%!important; height:100%!important; padding-bottom:96px!important; box-sizing:border-box!important; overflow:hidden!important; }
-    body.dq-mobile-code ${S.editorRoot} .dq-editor,
-    body.dq-mobile-code ${S.editor},
-    body.dq-mobile-code ${S.editorScroll} { display:block!important; width:100%!important; height:100%!important; min-height:0!important; }
-    body.dq-mobile-code ${S.editor} { font-size:16px!important; }
-    body.dq-mobile-code ${S.editorScroll} { overflow:auto!important; }
+
+    #dq-mobile-dock {
+      position:fixed !important;
+      right:10px !important;
+      bottom:max(10px, env(safe-area-inset-bottom)) !important;
+      z-index:2147483647 !important;
+      display:flex !important;
+      gap:5px !important;
+      padding:5px !important;
+      border-radius:12px !important;
+      background:rgba(17,24,39,.96) !important;
+      box-shadow:0 4px 18px rgba(0,0,0,.5) !important;
+    }
+    #dq-mobile-dock button,
+    #dq-native-editor-shell button {
+      border:0 !important;
+      border-radius:8px !important;
+      padding:9px 10px !important;
+      color:#fff !important;
+      background:#374151 !important;
+      font:700 12px/1 system-ui,sans-serif !important;
+    }
+    #dq-mobile-dock button[data-active="true"] { background:#2563eb !important; }
+
+    body.dq-native-read ${S.readPane} {
+      display:block !important;
+      visibility:visible !important;
+      width:100% !important;
+      max-width:100% !important;
+      position:relative !important;
+      left:0 !important;
+      right:auto !important;
+      transform:none !important;
+    }
+    body.dq-native-read ${S.codePane} { display:none !important; }
+    body.dq-native-read ${S.instruction} {
+      display:block !important;
+      width:100% !important;
+      max-width:100% !important;
+      box-sizing:border-box !important;
+      padding-left:20px !important;
+      padding-right:20px !important;
+      padding-bottom:90px !important;
+      overflow-x:hidden !important;
+    }
+
+    body.dq-native-dq ${S.readPane} { display:none !important; }
+    body.dq-native-dq ${S.codePane} {
+      display:block !important;
+      visibility:visible !important;
+      width:100% !important;
+      max-width:100% !important;
+      min-width:0 !important;
+      position:relative !important;
+      left:0 !important;
+      right:auto !important;
+      transform:none !important;
+    }
+
+    #dq-native-editor-shell {
+      position:fixed !important;
+      left:0 !important;
+      right:0 !important;
+      top:64px !important;
+      height:calc(var(--dq-vv-height, 100vh) - 64px) !important;
+      z-index:2147483645 !important;
+      display:none !important;
+      background:#111318 !important;
+      color:#fff !important;
+      overflow:hidden !important;
+      box-sizing:border-box !important;
+    }
+    body.dq-native-code #dq-native-editor-shell { display:block !important; }
+
+    #dq-native-editor-shell .dq-native-top {
+      position:absolute !important;
+      top:0 !important;
+      left:0 !important;
+      right:0 !important;
+      height:46px !important;
+      display:flex !important;
+      align-items:center !important;
+      gap:6px !important;
+      padding:5px 8px !important;
+      box-sizing:border-box !important;
+      background:#1f2937 !important;
+      border-bottom:1px solid #374151 !important;
+      z-index:2 !important;
+    }
+    #dq-native-editor-shell .dq-native-status {
+      min-width:0 !important;
+      flex:1 1 auto !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      color:#cbd5e1 !important;
+      font:600 11px/1.2 system-ui,sans-serif !important;
+    }
+    #dq-native-editor {
+      position:absolute !important;
+      top:46px !important;
+      left:0 !important;
+      right:0 !important;
+      bottom:52px !important;
+      width:100% !important;
+      height:auto !important;
+      margin:0 !important;
+      border:0 !important;
+      border-radius:0 !important;
+      outline:none !important;
+      resize:none !important;
+      box-sizing:border-box !important;
+      padding:14px !important;
+      background:#111318 !important;
+      color:#f8fafc !important;
+      caret-color:#fff !important;
+      font:16px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+      white-space:pre !important;
+      overflow:auto !important;
+      tab-size:2 !important;
+      -webkit-user-select:text !important;
+      user-select:text !important;
+    }
+    #dq-native-editor-shell .dq-native-bottom {
+      position:absolute !important;
+      left:0 !important;
+      right:0 !important;
+      bottom:0 !important;
+      height:52px !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:flex-end !important;
+      gap:7px !important;
+      padding:6px 8px !important;
+      box-sizing:border-box !important;
+      background:#1f2937 !important;
+      border-top:1px solid #374151 !important;
+      z-index:2 !important;
+    }
+    #dq-native-editor-shell .dq-run { background:#0f766e !important; }
+    #dq-native-editor-shell .dq-submit { background:#2563eb !important; }
   `;
   document.documentElement.appendChild(style);
 
-  const q = s => document.querySelector(s);
-  const getEditorHost = () => q(S.editor);
-  const getCM = () => getEditorHost()?.CodeMirror || null;
-  const getInstruction = () => q(S.instruction);
-  const getCodePane = () => q(S.codePane);
-
-  let mode = 'read';
-  let lastEvent = null;
-  let bridgeCalls = 0;
-  let bridgeErrors = [];
-
-  const cmState = () => {
-    const cm = getCM();
-    if (!cm) return { exists:false };
-    let selection = null;
-    let readOnly = null;
-    let cursor = null;
-    try { selection = cm.getSelection?.() ?? null; } catch {}
-    try { readOnly = cm.getOption?.('readOnly') ?? null; } catch {}
-    try { cursor = cm.getCursor?.() ?? null; } catch {}
-    return {
-      exists:true,
-      value: cm.getValue?.() ?? null,
-      valueLength: cm.getValue?.().length ?? null,
-      hasFocus: cm.hasFocus?.() ?? null,
-      readOnly,
-      selection,
-      cursor,
-      hasReplaceSelection: typeof cm.replaceSelection === 'function',
-      hasSetValue: typeof cm.setValue === 'function',
-      hasExecCommand: typeof cm.execCommand === 'function'
-    };
+  const setViewportVars = () => {
+    const h = Math.round(window.visualViewport?.height || window.innerHeight);
+    document.documentElement.style.setProperty('--dq-vv-height', `${h}px`);
   };
 
-  const refreshEditor = () => {
-    const cm = getCM();
-    if (!cm) return;
-    const h = Math.max(220, Math.round((visualViewport?.height || innerHeight) - 84));
-    setTimeout(() => { cm.setSize?.('100%', h); cm.refresh?.(); }, 60);
+  const setStatus = text => {
+    if (statusEl) statusEl.textContent = text;
   };
 
-  const buildReport = () => ({
-    version: VERSION,
-    mode,
-    viewport: { innerWidth, innerHeight, vvWidth:visualViewport?.width ?? null, vvHeight:visualViewport?.height ?? null, scale:visualViewport?.scale ?? null },
-    cm: cmState(),
-    bridgeCalls,
-    bridgeErrors: bridgeErrors.slice(-10),
-    lastEvent,
-    activeElement: document.activeElement ? { tag:document.activeElement.tagName, className:document.activeElement.className, id:document.activeElement.id || null } : null
-  });
+  const findButton = regex => [...document.querySelectorAll('button,[role="button"]')]
+    .find(el => regex.test((el.innerText || el.textContent || '').trim()));
 
-  const panel = document.createElement('div');
-  panel.id = 'dq-mobile-diag';
-  panel.style.display = 'none';
-  const row = document.createElement('div');
-  const out = document.createElement('pre');
-  const showReport = () => { const t = JSON.stringify(buildReport(), null, 2); out.textContent = t; window.__DQ_MUTATION_REPORT = t; return t; };
-  const button = (label, fn) => { const b=document.createElement('button'); b.textContent=label; b.addEventListener('click',fn); return b; };
-
-  row.append(
-    button('TEST INSERT X', () => {
-      const cm = getCM();
-      if (!cm) { bridgeErrors.push('TEST: no cm'); showReport(); return; }
-      try {
-        const before = cm.getValue?.();
-        cm.replaceSelection?.('X', 'end');
-        cm.refresh?.();
-        const after = cm.getValue?.();
-        lastEvent = { kind:'test-insert', before, after };
-      } catch (e) { bridgeErrors.push('TEST: ' + String(e?.stack || e)); }
-      showReport();
-    }),
-    button('TEST SET XYZ', () => {
-      const cm = getCM();
-      if (!cm) { bridgeErrors.push('SET: no cm'); showReport(); return; }
-      try {
-        const before = cm.getValue?.();
-        cm.setValue?.('XYZ');
-        cm.refresh?.();
-        const after = cm.getValue?.();
-        lastEvent = { kind:'test-set', before, after };
-      } catch (e) { bridgeErrors.push('SET: ' + String(e?.stack || e)); }
-      showReport();
-    }),
-    button('Capture', showReport),
-    button('Copy', async () => { const t = window.__DQ_MUTATION_REPORT || showReport(); try { await navigator.clipboard.writeText(t); } catch { prompt('Copy report:',t); } }),
-    button('Hide', () => panel.style.display='none')
-  );
-  panel.append(row,out);
-  document.documentElement.appendChild(panel);
-
-  const diagButton = document.createElement('button');
-  diagButton.textContent = 'CM DIAG';
-  diagButton.style.cssText = 'position:fixed;left:10px;bottom:14px;z-index:2147483647;border:0;border-radius:8px;padding:9px;background:#7c3aed;color:#fff;font-weight:700';
-  diagButton.addEventListener('click', () => { panel.style.display='block'; showReport(); });
-  document.documentElement.appendChild(diagButton);
-
-  document.addEventListener('beforeinput', event => {
-    if (mode !== 'code') return;
-    if (!event.target?.closest?.(S.editorRoot)) return;
-    bridgeCalls += 1;
+  const syncToDataquest = ({ quiet = false } = {}) => {
+    if (!textarea) return false;
     const cm = getCM();
-    const before = cm?.getValue?.() ?? null;
-    lastEvent = { type:'beforeinput', inputType:event.inputType ?? null, data:event.data ?? null, target:event.target?.className ?? null, before };
-    if (!cm) { bridgeErrors.push('beforeinput: no cm'); return; }
-    try {
-      if ((event.inputType === 'insertText' || event.inputType === 'insertCompositionText') && event.data) {
-        cm.replaceSelection?.(event.data, 'end');
-      }
-      const after = cm.getValue?.() ?? null;
-      lastEvent.after = after;
-    } catch (e) {
-      bridgeErrors.push('beforeinput: ' + String(e?.stack || e));
+    if (!cm || typeof cm.setValue !== 'function') {
+      if (!quiet) setStatus('Waiting for Dataquest editor…');
+      return false;
     }
-  }, true);
+    try {
+      const value = textarea.value;
+      if (cm.getValue?.() !== value) cm.setValue(value);
+      cm.save?.();
+      cm.refresh?.();
+      if (!quiet) setStatus('Synced to Dataquest');
+      return cm.getValue?.() === value;
+    } catch (error) {
+      console.warn('[DQ Mobile] sync failed', error);
+      if (!quiet) setStatus('Sync failed');
+      return false;
+    }
+  };
 
-  const applyMode = next => {
+  const scheduleSync = () => {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => syncToDataquest({ quiet: true }), 180);
+  };
+
+  const initDraft = () => {
+    if (!textarea || initializedDraft) return;
+    const cm = getCM();
+    const saved = localStorage.getItem(draftKey());
+    if (saved != null) {
+      textarea.value = saved;
+      initializedDraft = true;
+      setStatus('Draft restored');
+      syncToDataquest({ quiet: true });
+      return;
+    }
+    if (cm && typeof cm.getValue === 'function') {
+      textarea.value = cm.getValue() || '';
+      initializedDraft = true;
+      setStatus('Loaded from Dataquest');
+    }
+  };
+
+  const action = (kind) => {
+    if (!syncToDataquest()) return;
+    const regex = kind === 'run' ? /^run code$/i : /^submit answer$/i;
+    const btn = findButton(regex);
+    if (!btn) {
+      setStatus(kind === 'run' ? 'Run Code button not found' : 'Submit button not found');
+      return;
+    }
+    setStatus(kind === 'run' ? 'Running…' : 'Submitting…');
+    btn.click();
+    setTimeout(() => setMode('dq'), 250);
+  };
+
+  const setMode = next => {
     mode = next;
     if (!document.body) return;
-    document.body.classList.toggle('dq-mobile-read', next === 'read');
-    document.body.classList.toggle('dq-mobile-code', next === 'code');
-    document.querySelectorAll('#dq-mobile-toggle button').forEach(b => b.dataset.active=String(b.dataset.mode===next));
-    if (next === 'read') requestAnimationFrame(() => getInstruction()?.scrollIntoView({block:'start'}));
-    else requestAnimationFrame(() => { getCodePane()?.scrollIntoView({block:'start'}); refreshEditor(); });
+    syncToDataquest({ quiet: true });
+    document.body.classList.toggle('dq-native-read', next === 'read');
+    document.body.classList.toggle('dq-native-code', next === 'code');
+    document.body.classList.toggle('dq-native-dq', next === 'dq');
+    document.querySelectorAll('#dq-mobile-dock button').forEach(b => b.dataset.active = String(b.dataset.mode === next));
+
+    if (next === 'read') {
+      requestAnimationFrame(() => q(S.instruction)?.scrollIntoView({ block:'start' }));
+    } else if (next === 'code') {
+      initDraft();
+      requestAnimationFrame(() => textarea?.focus({ preventScroll:true }));
+    } else {
+      requestAnimationFrame(() => q(S.codePane)?.scrollIntoView({ block:'start' }));
+    }
   };
 
-  const mountControls = () => {
-    if (document.getElementById('dq-mobile-toggle')) return;
-    const wrap=document.createElement('div'); wrap.id='dq-mobile-toggle';
-    const mk=(label,value)=>{ const b=document.createElement('button'); b.textContent=label; b.dataset.mode=value; b.addEventListener('click',()=>applyMode(value)); return b; };
-    wrap.append(mk('READ','read'),mk('CODE','code'));
-    document.documentElement.appendChild(wrap);
-    applyMode(mode);
+  const mountShell = () => {
+    if (document.getElementById('dq-native-editor-shell')) return;
+    const shell = document.createElement('div');
+    shell.id = 'dq-native-editor-shell';
+
+    const top = document.createElement('div');
+    top.className = 'dq-native-top';
+    statusEl = document.createElement('div');
+    statusEl.className = 'dq-native-status';
+    statusEl.textContent = `Native editor ${VERSION}`;
+
+    const topRead = document.createElement('button');
+    topRead.textContent = 'READ';
+    topRead.addEventListener('click', () => setMode('read'));
+    const topDQ = document.createElement('button');
+    topDQ.textContent = 'DQ VIEW';
+    topDQ.addEventListener('click', () => setMode('dq'));
+    top.append(statusEl, topRead, topDQ);
+
+    textarea = document.createElement('textarea');
+    textarea.id = 'dq-native-editor';
+    textarea.setAttribute('inputmode','text');
+    textarea.setAttribute('autocomplete','off');
+    textarea.setAttribute('autocapitalize','off');
+    textarea.setAttribute('spellcheck','false');
+    textarea.setAttribute('aria-label','Dataquest mobile code editor');
+    textarea.addEventListener('input', () => {
+      localStorage.setItem(draftKey(), textarea.value);
+      setStatus('Draft saved');
+      scheduleSync();
+    });
+    textarea.addEventListener('keydown', event => {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        textarea.setRangeText('  ', start, end, 'end');
+        textarea.dispatchEvent(new Event('input', { bubbles:true }));
+      }
+    });
+
+    const bottom = document.createElement('div');
+    bottom.className = 'dq-native-bottom';
+    const run = document.createElement('button');
+    run.className = 'dq-run';
+    run.textContent = 'RUN';
+    run.addEventListener('click', () => action('run'));
+    const submit = document.createElement('button');
+    submit.className = 'dq-submit';
+    submit.textContent = 'SUBMIT';
+    submit.addEventListener('click', () => action('submit'));
+    bottom.append(run, submit);
+
+    shell.append(top, textarea, bottom);
+    document.documentElement.appendChild(shell);
+    initDraft();
+  };
+
+  const mountDock = () => {
+    if (document.getElementById('dq-mobile-dock')) return;
+    const dock = document.createElement('div');
+    dock.id = 'dq-mobile-dock';
+    const make = (label, value) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.dataset.mode = value;
+      b.addEventListener('click', () => setMode(value));
+      return b;
+    };
+    dock.append(make('READ','read'), make('CODE','code'), make('DQ','dq'));
+    document.documentElement.appendChild(dock);
   };
 
   const ensureContinue = () => {
-    const btn=[...document.querySelectorAll('button,a')].find(el=>/continue here/i.test((el.innerText||el.textContent||'').trim()));
-    if (btn && !btn.dataset.dqAutoClicked) { btn.dataset.dqAutoClicked='1'; btn.click(); }
+    const btn = [...document.querySelectorAll('button,a')]
+      .find(el => /continue here/i.test((el.innerText || el.textContent || '').trim()));
+    if (btn && !btn.dataset.dqAutoClicked) {
+      btn.dataset.dqAutoClicked = '1';
+      btn.click();
+    }
   };
 
-  const boot = () => { mountControls(); ensureContinue(); if (mode==='code' && getCM()) refreshEditor(); };
-  const observer=new MutationObserver(boot); observer.observe(document.documentElement,{childList:true,subtree:true});
+  const boot = () => {
+    setViewportVars();
+    mountShell();
+    mountDock();
+    ensureContinue();
+    initDraft();
+    if (document.body && !document.body.classList.contains('dq-native-read') && !document.body.classList.contains('dq-native-code') && !document.body.classList.contains('dq-native-dq')) {
+      setMode(mode);
+    }
+  };
+
+  const observer = new MutationObserver(boot);
+  observer.observe(document.documentElement, { childList:true, subtree:true });
+  window.addEventListener('resize', setViewportVars, { passive:true });
+  window.visualViewport?.addEventListener('resize', setViewportVars, { passive:true });
+  window.visualViewport?.addEventListener('scroll', setViewportVars, { passive:true });
+
   boot();
+  console.log(`[DQ Mobile] ${VERSION} loaded`);
 })();
