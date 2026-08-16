@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.3.2
+// @version      0.3.3
 // @description  Mobile READ/CODE layout for Dataquest on Android.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -13,12 +13,11 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.3.2-controls-first';
+  const VERSION = '0.3.3-editor-input-fix';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
   const S = {
-    outerSplit: 'div.SplitPane.vertical',
     readPane: 'div.SplitPane.vertical > div.Pane.vertical.Pane1',
     codePane: 'div.SplitPane.vertical > div.Pane.vertical.Pane2',
     instruction: 'div.SplitPane.vertical > div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto',
@@ -27,7 +26,8 @@
     innerPane2: 'div.SplitPane.vertical > div.Pane.vertical.Pane2 div.SplitPane.horizontal > div.Pane.horizontal.Pane2',
     editorRoot: '#editor_with_extra',
     editor: '#editor_with_extra .CodeMirror',
-    editorScroll: '#editor_with_extra .CodeMirror-scroll'
+    editorScroll: '#editor_with_extra .CodeMirror-scroll',
+    editorInput: '#editor_with_extra .CodeMirror textarea'
   };
 
   document.getElementById('dq-mobile-style')?.remove();
@@ -143,6 +143,17 @@
     }
     body.dq-mobile-code ${S.editor} { font-size: 16px !important; }
     body.dq-mobile-code ${S.editorScroll} { overflow: auto !important; }
+
+    /* Keep CodeMirror's real textarea focusable on Android. Do not reposition it;
+       CodeMirror manages its own hidden input near the caret. */
+    body.dq-mobile-code ${S.editorInput} {
+      font-size: 16px !important;
+      opacity: 0 !important;
+      pointer-events: auto !important;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      caret-color: transparent !important;
+    }
   `;
   document.documentElement.appendChild(style);
 
@@ -153,16 +164,37 @@
 
   let mode = 'read';
 
+  const getCM = () => getEditor()?.CodeMirror || null;
+
   const refreshEditor = () => {
-    const host = getEditor();
-    const cm = host?.CodeMirror;
+    const cm = getCM();
     if (!cm) return;
     const vvHeight = Math.round(window.visualViewport?.height || window.innerHeight);
-    const desired = Math.max(260, vvHeight - 84);
+    const desired = Math.max(220, vvHeight - 84);
     setTimeout(() => {
       if (typeof cm.setSize === 'function') cm.setSize('100%', desired);
       if (typeof cm.refresh === 'function') cm.refresh();
     }, 80);
+  };
+
+  const focusEditor = () => {
+    const cm = getCM();
+    if (!cm) return;
+    try {
+      if (typeof cm.focus === 'function') cm.focus();
+      const input = cm.getInputField?.();
+      if (input) {
+        input.removeAttribute('readonly');
+        input.removeAttribute('disabled');
+        input.setAttribute('inputmode', 'text');
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('spellcheck', 'false');
+        input.focus({ preventScroll: true });
+      }
+    } catch (err) {
+      console.warn('[DQ Mobile] editor focus failed', err);
+    }
   };
 
   const applyMode = next => {
@@ -201,6 +233,29 @@
     applyMode(mode);
   };
 
+  const ensureEditorInput = () => {
+    const cm = getCM();
+    if (!cm) return;
+    const input = cm.getInputField?.();
+    if (!input) return;
+    input.removeAttribute('readonly');
+    input.removeAttribute('disabled');
+    input.setAttribute('inputmode', 'text');
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+  };
+
+  document.addEventListener('pointerdown', (event) => {
+    if (mode !== 'code') return;
+    const editor = event.target.closest?.(S.editorRoot);
+    if (!editor) return;
+    setTimeout(() => {
+      ensureEditorInput();
+      focusEditor();
+    }, 0);
+  }, true);
+
   const ensureContinue = () => {
     const btn = [...document.querySelectorAll('button, a')]
       .find(el => /continue here/i.test((el.innerText || el.textContent || '').trim()));
@@ -213,6 +268,7 @@
   const boot = () => {
     mountControls();
     ensureContinue();
+    ensureEditorInput();
     if (mode === 'code' && getEditor()) refreshEditor();
   };
 
