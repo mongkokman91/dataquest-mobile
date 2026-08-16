@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body>
+  <header style="height:64px">Dataquest lesson</header>
+  <main id="app"></main>
+  <script>
+    window.fixture = { runs: [], submits: [], cmChanges: 0 };
+    window.renderLesson = ({ value = 'print("starter")', variant = 'classic' } = {}) => {
+      const app = document.querySelector('#app');
+      app.innerHTML = variant === 'classic' ? `
+        <div class="SplitPane vertical" style="display:flex">
+          <div class="Pane vertical Pane1"><div class="dq-px-10 dq-pb-3 dq-overflow-y-auto" data-dq-instructions><h1>Instructions</h1><p>Solve the exercise.</p></div></div>
+          <div class="Pane vertical Pane2"><div class="SplitPane horizontal"><div class="Pane horizontal Pane1">
+            <div id="editor_with_extra"><div class="CodeMirror"><div class="CodeMirror-scroll"><div class="CodeMirror-code" contenteditable="true"></div></div></div></div>
+          </div><div class="Pane horizontal Pane2" data-dq-results>Ready</div></div>
+          <button data-action="run">Run Code</button><button data-action="submit">Submit Answer</button></div>
+        </div>` : `
+        <section data-testid="lesson-instructions"><h1>Instructions</h1><p>Solve the rerendered exercise.</p></section>
+        <section data-testid="workspace"><div role="textbox" class="cm-editor"><div class="cm-content" contenteditable="true"></div></div>
+        <output data-testid="run-result">Ready</output><button aria-label="Run code">Run</button><button aria-label="Submit answer">Submit</button></section>`;
+      const host = app.querySelector('.CodeMirror, .cm-editor');
+      let editorValue = value;
+      const cm = {
+        getValue: () => editorValue,
+        setValue: next => { editorValue = next; window.fixture.cmChanges++; host.dispatchEvent(new CustomEvent('change', { detail: next })); },
+        save: () => {}, refresh: () => {}
+      };
+      host.CodeMirror = cm;
+      app.querySelector('[data-action="run"], [aria-label="Run code"]').addEventListener('click', () => {
+        window.fixture.runs.push(editorValue);
+        const result = app.querySelector('[data-dq-results], [data-testid="run-result"]');
+        result.textContent = `Ran: ${editorValue}`;
+      });
+      app.querySelector('[data-action="submit"], [aria-label="Submit answer"]').addEventListener('click', () => window.fixture.submits.push(editorValue));
+    };
+    renderLesson();
+  </script>
+</body>
+</html>
