@@ -15,10 +15,15 @@
             <div id="editor_with_extra"><div class="CodeMirror"><div class="CodeMirror-scroll"><div class="CodeMirror-code" contenteditable="true"></div></div></div></div>
           </div><div class="Pane horizontal Pane2" data-dq-results>Ready</div></div>
           <button data-action="run">Run Code</button><button data-action="submit">Submit Answer</button></div>
-        </div>` : `
+        </div>` : variant === 'semantic' ? `
         <section data-testid="lesson-instructions"><h1>Instructions</h1><p>Solve the rerendered exercise.</p></section>
         <section data-testid="workspace"><div role="textbox" class="cm-editor"><div class="cm-content" contenteditable="true"></div></div>
-        <output data-testid="run-result">Ready</output><button aria-label="Run code">Run</button><button aria-label="Submit answer">Submit</button></section>`;
+        <output data-testid="run-result">Ready</output><button aria-label="Run code">Run</button><button aria-label="Submit answer">Submit</button></section>` : `
+        <main class="lesson-instructions-workspace" data-testid="lesson-shell">
+          <h1>Shared lesson content</h1><p data-dq-instructions>Instructions remain accessible.</p>
+          <div class="CodeMirror"><div class="CodeMirror-code" contenteditable="true"></div></div>
+          <output data-dq-results>Ready</output><button data-action="run">Run Code</button><button data-action="submit">Submit Answer</button>
+        </main>`;
       const host = app.querySelector('.CodeMirror, .cm-editor');
       let editorValue = value;
       const cm = {

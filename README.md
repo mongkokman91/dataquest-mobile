@@ -12,6 +12,8 @@ The hosted userscript injects three views:
 
 Editor integration is isolated in a capability-based adapter. It discovers CodeMirror 5 or CodeMirror 6 APIs by behavior, synchronizes the native draft before every action, and then clicks Dataquest's visible Run or Submit control. A mutation observer re-detects regions and editor instances after React rerenders or lesson navigation. Drafts contain code only and are scoped to `location.pathname`.
 
+Page-region transformations are mobile-only. Before applying them, the script verifies that instruction and workspace regions both exist and are disjoint. If the layout is missing, shared, nested, or otherwise uncertain, Dataquest's page remains untouched and visible. Desktop Dataquest keeps its native layout.
+
 Runtime status is shown at the top of CODE view. A missing editor or action control produces a visible error instead of silently losing code.
 
 ## Install and updates
@@ -28,7 +30,7 @@ npx playwright install chromium
 npm test
 ```
 
-Tests run as mobile Chromium at 360×604 with DPR 3 and cover repeated READ/CODE switching, native typing, draft restoration, Run/Submit synchronization, results access, React-style rerenders, keyboard-sized viewport contraction, duplicate prevention, and storage safety.
+Tests run in Android Chromium at 360×604 with DPR 3 and desktop Edge-compatible Chromium at 1900×1120. They cover repeated READ/CODE/DQ switching, native typing, route-specific draft restoration, Run/Submit synchronization, results access, React-style rerenders and SPA navigation, keyboard-sized viewport contraction, duplicate prevention, shared-container blank-page prevention, unknown-layout fallback, and storage safety.
 
 ## Final Android acceptance test
 
