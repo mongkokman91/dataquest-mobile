@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.8.2');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.0');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -76,6 +76,26 @@ test('READ CODE DQ READ remains nonblank across repeated cycles', async ({ page 
     await page.getByRole('button', { name: 'READ', exact: true }).last().click();
   }
   await expect(page.getByText('Solve the exercise.')).toBeVisible();
+});
+
+test('CODE keeps lesson context above a bottom-half editor and actions', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await openLesson(page);
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  const instructions = page.locator('[data-dq-instructions]');
+  const shell = page.locator('#dq-native-editor-shell');
+  await expect(instructions).toBeVisible();
+  await expect(shell).toBeVisible();
+  await expect(page.getByRole('button', { name: 'RUN', exact: true })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'SUBMIT', exact: true })).toBeInViewport();
+  const boxes = await page.evaluate(() => ({
+    read: document.querySelector('[data-dq-mobile-region="read"]').getBoundingClientRect().toJSON(),
+    code: document.querySelector('#dq-native-editor-shell').getBoundingClientRect().toJSON(),
+    viewport: { width: innerWidth, height: innerHeight }
+  }));
+  expect(boxes.read.bottom).toBeLessThanOrEqual(boxes.code.top + 1);
+  expect(boxes.code.top).toBeGreaterThan(boxes.viewport.height * 0.45);
+  expect(boxes.code.top).toBeLessThan(boxes.viewport.height * 0.55);
 });
 
 test('RUN and SUBMIT target enabled workspace controls after synchronization', async ({ page }, testInfo) => {
