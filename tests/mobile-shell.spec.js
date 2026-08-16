@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.9.3');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.0');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -100,9 +100,10 @@ test('CODE keeps lesson context above a bottom-half editor and actions', async (
 });
 
 test('native Chandra explanation view temporarily replaces the mobile workspace', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
   await openLesson(page);
   await page.getByRole('button', { name: 'CODE', exact: true }).click();
-  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test><span>Chat with Chandra AI</span><p>Explanation is visible.</p></section>'));
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></section>'));
   await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
   await expect(page.getByText('Explanation is visible.')).toBeVisible();
   await expect(page.locator('#dq-native-editor-shell')).toBeHidden();
@@ -110,6 +111,25 @@ test('native Chandra explanation view temporarily replaces the mobile workspace'
   await page.evaluate(() => document.querySelector('[data-chandra-test]').remove());
   await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'false');
   await expect(page.locator('#dq-native-editor-shell')).toBeVisible();
+});
+
+test('wide Chandra view uses the left half with lesson and code stacked on the right', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await openLesson(page);
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></section>'));
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
+  await expect(page.locator('#dq-native-editor-shell')).toBeVisible();
+  await expect(page.locator('[data-dq-instructions]')).toBeVisible();
+  const panes = await page.evaluate(() => ({
+    chandra: document.querySelector('[data-chandra-test]').getBoundingClientRect().toJSON(),
+    read: document.querySelector('[data-dq-mobile-region="read"]').getBoundingClientRect().toJSON(),
+    code: document.querySelector('#dq-native-editor-shell').getBoundingClientRect().toJSON()
+  }));
+  expect(panes.chandra.right).toBeCloseTo(500, 0);
+  expect(panes.read.left).toBeCloseTo(500, 0);
+  expect(panes.code.left).toBeCloseTo(500, 0);
+  expect(panes.read.bottom).toBeLessThanOrEqual(panes.code.top + 1);
 });
 
 test('RUN and SUBMIT target enabled workspace controls after synchronization', async ({ page }, testInfo) => {
