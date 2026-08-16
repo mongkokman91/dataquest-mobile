@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.2.3
+// @version      0.2.4
 // @description  Mobile usability layer for Dataquest on Android.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -13,7 +13,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.2.3-mobile-shell';
+  const VERSION = '0.2.4-mobile-shell';
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
 
@@ -40,6 +40,7 @@
   style.id = 'dq-mobile-style';
   style.textContent = `
     html, body { overflow-x: hidden !important; }
+
     #dq-mobile-toggle {
       position: fixed; right: 12px; bottom: max(14px, env(safe-area-inset-bottom));
       z-index: 2147483647; display: flex; gap: 6px; padding: 6px; border-radius: 12px;
@@ -53,40 +54,85 @@
 
     body.dq-mobile-read ${SELECTORS.splitPane},
     body.dq-mobile-code ${SELECTORS.splitPane} {
-      display: block !important; width: 100% !important; max-width: 100% !important;
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
     }
 
     body.dq-mobile-read ${SELECTORS.pane1},
     body.dq-mobile-code ${SELECTORS.pane2} {
-      display: block !important; width: 100% !important; max-width: 100% !important;
-      min-width: 0 !important; position: relative !important; left: 0 !important;
-      right: auto !important; transform: none !important; overflow: visible !important;
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      height: auto !important;
+      min-height: calc(100vh - 120px) !important;
+      position: relative !important;
+      left: 0 !important;
+      right: auto !important;
+      top: auto !important;
+      bottom: auto !important;
+      transform: none !important;
+      overflow: visible !important;
     }
+
     body.dq-mobile-read ${SELECTORS.pane2},
-    body.dq-mobile-code ${SELECTORS.pane1} { display: none !important; }
+    body.dq-mobile-code ${SELECTORS.pane1} {
+      display: none !important;
+    }
 
     body.dq-mobile-read ${SELECTORS.pane1} > *,
     body.dq-mobile-code ${SELECTORS.pane2} > * {
-      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      height: auto !important;
+      min-height: 0 !important;
       box-sizing: border-box !important;
     }
 
     body.dq-mobile-read ${SELECTORS.instruction} {
-      display: block !important; width: 100% !important; max-width: 100% !important;
-      min-width: 0 !important; box-sizing: border-box !important;
-      padding-left: 20px !important; padding-right: 20px !important;
-      overflow-y: auto !important; overflow-x: hidden !important;
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      height: auto !important;
+      min-height: calc(100vh - 150px) !important;
+      box-sizing: border-box !important;
+      padding-left: 20px !important;
+      padding-right: 20px !important;
+      padding-bottom: 96px !important;
+      overflow-y: visible !important;
+      overflow-x: hidden !important;
     }
 
     body.dq-mobile-code ${SELECTORS.editorRoot},
     body.dq-mobile-code ${SELECTORS.editorRoot} .dq-editor,
     body.dq-mobile-code ${SELECTORS.editorRoot} .CodeMirror,
     body.dq-mobile-code ${SELECTORS.editorRoot} .CodeMirror-scroll {
-      width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
       box-sizing: border-box !important;
     }
-    body.dq-mobile-code ${SELECTORS.editorRoot} .CodeMirror { font-size: 16px !important; }
-    body.dq-mobile-code .CodeMirror-scroll { overflow-x: auto !important; }
+
+    body.dq-mobile-code ${SELECTORS.editorRoot} {
+      min-height: calc(100vh - 120px) !important;
+      padding-bottom: 96px !important;
+    }
+
+    body.dq-mobile-code ${SELECTORS.editorRoot} .CodeMirror {
+      font-size: 16px !important;
+      min-height: calc(100vh - 220px) !important;
+    }
+
+    body.dq-mobile-code ${SELECTORS.editorRoot} .CodeMirror-scroll {
+      min-height: calc(100vh - 220px) !important;
+      overflow-x: auto !important;
+      overflow-y: auto !important;
+    }
   `;
   document.documentElement.appendChild(style);
 
@@ -106,23 +152,37 @@
     const editor = getEditor();
     const cmHost = editor?.closest('.CodeMirror');
     const cm = cmHost?.CodeMirror;
-    if (cm && typeof cm.refresh === 'function') setTimeout(() => cm.refresh(), 100);
+    if (cm && typeof cm.refresh === 'function') {
+      setTimeout(() => {
+        cm.refresh();
+        if (typeof cm.setSize === 'function') cm.setSize('100%', 'auto');
+      }, 100);
+    }
   };
 
   const applyMode = (mode) => {
     state.mode = mode;
     document.body.classList.toggle('dq-mobile-read', mode === 'read');
     document.body.classList.toggle('dq-mobile-code', mode === 'code');
+
     document.querySelectorAll('#dq-mobile-toggle button').forEach(btn => {
       btn.dataset.active = String(btn.dataset.mode === mode);
     });
+
+    if (mode === 'read') {
+      const instruction = getInstruction();
+      if (instruction) instruction.style.display = 'block';
+    }
+
     if (mode === 'code') requestAnimationFrame(refreshEditor);
   };
 
   const mountToggle = () => {
     if (document.getElementById('dq-mobile-toggle')) return;
+
     const wrap = document.createElement('div');
     wrap.id = 'dq-mobile-toggle';
+
     const makeButton = (label, mode) => {
       const button = document.createElement('button');
       button.textContent = label;
@@ -130,6 +190,7 @@
       button.addEventListener('click', () => applyMode(mode));
       return button;
     };
+
     wrap.append(makeButton('READ', 'read'), makeButton('CODE', 'code'));
     document.documentElement.appendChild(wrap);
     applyMode(state.mode);
@@ -139,6 +200,7 @@
     ensureContinue();
     if (!document.body) return;
     if (!(getInstruction() || getEditor())) return;
+
     mountToggle();
     if (!state.initialized) {
       state.initialized = true;
