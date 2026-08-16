@@ -4,10 +4,10 @@ const path = require('node:path');
 
 const userscript = fs.readFileSync(path.join(__dirname, '..', 'dataquest-mobile.user.js'), 'utf8');
 
-async function openLesson(page, pathname = '/mission/1/screen/1', variant = 'classic') {
+async function openLesson(page, pathname = '/mission/1/screen/1', variant = 'classic', interaction = 'click') {
   await page.goto(`http://127.0.0.1:4173${pathname}`);
   if (variant === 'missing') await page.evaluate(() => document.querySelector('#app').innerHTML = '<article data-testid="changed-layout"><h1>Lesson still loading</h1><p>Dataquest content must remain visible.</p></article>');
-  else if (variant !== 'classic') await page.evaluate(v => window.renderLesson({ variant: v }), variant);
+  else if (variant !== 'classic' || interaction !== 'click') await page.evaluate(opts => window.renderLesson(opts), { variant, interaction });
   await page.addScriptTag({ content: userscript });
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toBeVisible();
 }
@@ -169,4 +169,66 @@ test('storage contains only a pathname-scoped draft and no credential material',
   const storage = await page.evaluate(() => ({ ...localStorage }));
   expect(Object.keys(storage)).toEqual(['/mission/1/screen/1'].map(p => `dq-mobile-draft:${p}`));
   expect(JSON.stringify(storage)).not.toMatch(/cookie|csrf|session|bearer|password|token/i);
+});
+
+// The following tests reproduce the real-device shape of #4: RUN/SUBMIT can
+// dispatch a click that bubbles to the document while Dataquest's own
+// application state never changes. A bare `target.click()` plus a
+// document-level capture listener cannot tell that apart from genuine
+// success, which is exactly why the previous suite reported green while RUN
+// and SUBMIT were unresponsive on the real site.
+
+test('RUN and SUBMIT never claim success when Dataquest silently ignores the tap', async ({ page }) => {
+  test.slow();
+  await openLesson(page, '/mission/actions/screen/1', 'classic', 'silent');
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await page.getByLabel('Dataquest mobile code editor').fill('current_answer = 42');
+  await page.getByRole('button', { name: 'RUN', exact: true }).click();
+  const toast = page.locator('#dq-mobile-toast');
+  await expect(toast).toBeVisible({ timeout: 14000 });
+  await expect(toast).toHaveAttribute('data-error', 'true', { timeout: 14000 });
+  await expect(toast).toContainText(/may not have reached dataquest/i);
+  expect(await page.evaluate(() => window.fixture.runs)).toEqual([]);
+  expect(await page.evaluate(() => window.fixture.cmChanges)).toBeGreaterThan(0);
+});
+
+test('RUN and SUBMIT reach touch-first Dataquest controls that never fire a plain click handler', async ({ page }) => {
+  await openLesson(page, '/mission/actions/screen/1', 'classic', 'pointerup');
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  const editor = page.getByLabel('Dataquest mobile code editor');
+  await editor.fill('current_answer = 42');
+  await page.getByRole('button', { name: 'RUN', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.runs.at(-1)), { timeout: 8000 }).toBe('current_answer = 42');
+  await expect(page.locator('#dq-mobile-toast')).toContainText(/run code activated/i, { timeout: 8000 });
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await editor.fill('current_answer = 43');
+  await page.getByRole('button', { name: 'SUBMIT', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.submits.at(-1)), { timeout: 8000 }).toBe('current_answer = 43');
+});
+
+test('the run/submit result stays visible in DQ view instead of being hidden inside the CODE shell', async ({ page }) => {
+  await openLesson(page);
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await page.getByLabel('Dataquest mobile code editor').fill('answer = 1');
+  await page.getByRole('button', { name: 'RUN', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.runs.at(-1)), { timeout: 8000 }).toBe('answer = 1');
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-mode', 'dq');
+  const toast = page.locator('#dq-mobile-toast');
+  await expect(toast).toBeVisible();
+  await expect(toast).toHaveAttribute('data-error', 'false');
+  await expect(toast).toContainText(/run code activated/i);
+});
+
+test('RUN and SUBMIT never activate visible, enabled controls that merely share a label inside the instructions region', async ({ page }) => {
+  await openLesson(page, '/mission/actions/screen/1', 'adversarial');
+  const decoyRun = page.locator('[data-decoy-action="run"]');
+  const decoySubmit = page.locator('[data-decoy-action="submit"]');
+  await expect(decoyRun).toBeVisible();
+  await expect(decoySubmit).toBeVisible();
+  await expect(decoyRun).toBeEnabled();
+  await page.getByRole('button', { name: 'CODE', exact: true }).click();
+  await page.getByLabel('Dataquest mobile code editor').fill('current_answer = 42');
+  await page.getByRole('button', { name: 'RUN', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.fixture.runs.at(-1)), { timeout: 8000 }).toBe('current_answer = 42');
+  expect(await page.evaluate(() => window.fixture.decoyClicks)).toBe(0);
 });

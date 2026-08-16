@@ -6,13 +6,13 @@
   <main id="app"></main>
   <script>
     window.fixture = { runs: [], submits: [], decoyClicks: 0, controlClicks: [], cmChanges: 0 };
-    window.renderLesson = ({ value = 'print("starter")', variant = 'classic' } = {}) => {
+    window.renderLesson = ({ value = 'print("starter")', variant = 'classic', interaction = 'click' } = {}) => {
       const app = document.querySelector('#app');
       app.innerHTML = variant === 'adversarial' ? `
         <div class="SplitPane vertical" style="display:flex">
           <div class="Pane vertical Pane1"><div class="dq-px-10 dq-pb-3 dq-overflow-y-auto" data-dq-instructions>
             <h1>Instructions</h1><p>Do not run this decoy.</p><div class="CodeMirror" data-static-example></div>
-            <button data-decoy-action="run" style="display:none">Run Code</button><button data-decoy-action="submit" style="display:none">Submit Answer</button>
+            <button data-decoy-action="run">Run Code</button><button data-decoy-action="submit">Submit Answer</button>
           </div></div>
           <div class="Pane vertical Pane2"><div class="SplitPane horizontal">
             <div class="Pane horizontal Pane1" data-dq-results>Ready</div>
@@ -49,16 +49,29 @@
       app.querySelectorAll('[data-decoy-action]').forEach(button => button.addEventListener('click', () => window.fixture.decoyClicks++));
       const runButton = app.querySelector('[data-real-action="run"], [data-action="run"], [aria-label="Run code"]');
       const submitButton = app.querySelector('[data-real-action="submit"], [data-action="submit"], [aria-label="Submit answer"]');
-      runButton.addEventListener('click', event => {
+      const runReact = event => {
         window.fixture.controlClicks.push({ kind: 'run', disabled: event.currentTarget.disabled, value: editorValue });
         window.fixture.runs.push(editorValue);
         const result = app.querySelector('[data-dq-results], [data-testid="run-result"]');
         result.textContent = `Ran: ${editorValue}`;
-      });
-      submitButton.addEventListener('click', event => {
+      };
+      const submitReact = event => {
         window.fixture.controlClicks.push({ kind: 'submit', disabled: event.currentTarget.disabled, value: editorValue });
         window.fixture.submits.push(editorValue);
-      });
+      };
+      // interaction models real-world control wiring the harness must survive:
+      // 'click' = a plain onClick handler, 'pointerup' = a touch-first control that
+      // never fires a click handler at all, 'silent' = a control that receives and
+      // bubbles a real click event yet performs no application state change
+      // (the exact false-positive shape a bare `target.click()` cannot distinguish
+      // from a genuine success).
+      if (interaction === 'pointerup') {
+        runButton.addEventListener('pointerup', runReact);
+        submitButton.addEventListener('pointerup', submitReact);
+      } else if (interaction !== 'silent') {
+        runButton.addEventListener('click', runReact);
+        submitButton.addEventListener('click', submitReact);
+      }
     };
     renderLesson();
   </script>
