@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.1');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.2');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -103,7 +103,7 @@ test('native Chandra explanation view temporarily replaces the mobile workspace'
   await page.setViewportSize({ width: 412, height: 915 });
   await openLesson(page);
   await page.getByRole('button', { name: 'CODE', exact: true }).click();
-  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><div data-chandra-drawer style="width:184px;max-width:184px"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></div></section>'));
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><div class="SplitPane vertical"><div data-chandra-drawer class="Pane vertical Pane1" style="flex:0 0 auto;width:27%"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></div><span class="Resizer vertical"></span><div class="Pane vertical Pane2" style="flex:1 1 0%"></div></div></section>'));
   await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
   await expect(page.getByText('Explanation is visible.')).toBeVisible();
   await expect(page.locator('#dq-native-editor-shell')).toBeHidden();
@@ -117,7 +117,7 @@ test('wide Chandra view uses the left half with lesson and code stacked on the r
   await page.setViewportSize({ width: 1000, height: 700 });
   await openLesson(page);
   await page.getByRole('button', { name: 'CODE', exact: true }).click();
-  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><div data-chandra-drawer style="width:184px;max-width:184px"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></div></section>'));
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><div class="SplitPane vertical"><div data-chandra-drawer class="Pane vertical Pane1" style="flex:0 0 auto;width:27%"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></div><span class="Resizer vertical"></span><div class="Pane vertical Pane2" style="flex:1 1 0%"></div></div></section>'));
   await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
   await expect(page.locator('#dq-native-editor-shell')).toBeVisible();
   await expect(page.locator('[data-dq-instructions]')).toBeVisible();
