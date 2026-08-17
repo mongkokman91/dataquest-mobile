@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.10.4
+// @version      0.10.5
 // @description  Reliable Android split workspace for Dataquest with READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.10.4';
+  const VERSION = '0.10.5';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -20,7 +20,7 @@
   const pageDocument = pageWindow.document;
   if (window.__DQ_MOBILE_VERSION === VERSION) return;
   window.__DQ_MOBILE_VERSION = VERSION;
-  const state = { mode:'read', textarea:null, toast:null, hideTimer:0, timer:0, route:'', initialized:'' };
+  const state = { mode:'read', textarea:null, toast:null, hideTimer:0, timer:0, route:'', initialized:'', viewportWidth:0, viewportMax:0 };
   const own = e => e?.closest?.('[data-dq-mobile-ui]');
   const label = e => (e?.innerText || e?.textContent || e?.getAttribute?.('aria-label') || '').trim();
   const rendered = e => {if(!e?.isConnected)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.pointerEvents!=='none';};
@@ -184,7 +184,7 @@ body[data-dq-mobile-overlay=true] [data-dq-mobile-chandra-split]{width:100%!impo
 @media (min-width:700px){body[data-dq-mobile-overlay=true] [data-dq-mobile-chandra]{position:fixed!important;inset:0 auto 0 0!important;width:50vw!important;max-width:50vw!important;overflow:hidden!important}body[data-dq-mobile-overlay=true] [data-dq-mobile-region=read]{display:block!important;visibility:visible!important;position:fixed!important;inset:64px 0 auto 50vw!important;width:50vw!important;max-width:50vw!important;height:calc(var(--dq-vv-half,50dvh) - 64px)!important;overflow:auto!important;z-index:2147483644!important}body[data-dq-mobile-overlay=true] [data-dq-mobile-region=dq]{display:none!important}body[data-dq-mobile-overlay=true] #dq-native-editor-shell{display:block!important;inset:var(--dq-vv-half,50dvh) 0 auto 50vw!important;width:50vw!important;height:calc(var(--dq-vv-height,100dvh) - var(--dq-vv-half,50dvh))!important}body[data-dq-mobile-overlay=true] #dq-mobile-dock,body[data-dq-mobile-overlay=true] #dq-mobile-toast{display:none!important}}
 #dq-mobile-toast{position:fixed!important;left:50%!important;top:max(8px,env(safe-area-inset-top))!important;transform:translateX(-50%)!important;max-width:min(92vw,520px)!important;z-index:2147483646!important;padding:9px 14px!important;border-radius:10px!important;background:#111827f5!important;color:#e2e8f0!important;font:600 12px/1.3 system-ui,sans-serif!important;box-shadow:0 4px 18px #0008!important;text-align:center!important}#dq-mobile-toast[data-error=true]{color:#fca5a5!important}#dq-mobile-toast[hidden]{display:none!important}`;document.head.appendChild(s);
   };
-  const viewport=()=>{const height=Math.round(window.visualViewport?.height||innerHeight);document.documentElement.style.setProperty('--dq-vv-height',`${height}px`);document.documentElement.style.setProperty('--dq-vv-half',`${Math.round(height/2)}px`);};
+  const viewport=()=>{const vv=window.visualViewport,width=Math.round(vv?.width||innerWidth),height=Math.round(vv?.height||innerHeight);if(!state.viewportWidth||Math.abs(width-state.viewportWidth)>40){state.viewportWidth=width;state.viewportMax=height;}else state.viewportMax=Math.max(state.viewportMax,height);const keyboard=width<700&&state.viewportMax-height>Math.max(120,state.viewportMax*.18),split=keyboard?Math.max(160,Math.round(height*.3)):Math.round(height/2);document.documentElement.style.setProperty('--dq-vv-height',`${height}px`);document.documentElement.style.setProperty('--dq-vv-half',`${Math.min(split,height)}px`);if(document.body)document.body.dataset.dqMobileKeyboard=String(keyboard);};
   const chandraView=()=>{const title=[...document.querySelectorAll('span')].find(e=>e.textContent?.trim()==='Chat with Chandra AI');return {title,root:title?.closest('.dq-fixed.dq-inset-0')||title?.parentElement||null};};
   const boot=()=>{replaceStaleUi();styles();mount();viewport();const {title,root:chandra}=chandraView();document.querySelectorAll('[data-dq-mobile-chandra],[data-dq-mobile-chandra-split],[data-dq-mobile-chandra-chat],[data-dq-mobile-chandra-resizer],[data-dq-mobile-chandra-content]').forEach(e=>{delete e.dataset.dqMobileChandra;delete e.dataset.dqMobileChandraSplit;delete e.dataset.dqMobileChandraChat;delete e.dataset.dqMobileChandraResizer;delete e.dataset.dqMobileChandraContent;});if(chandra){chandra.dataset.dqMobileChandra='';const chat=title?.closest('.Pane.vertical.Pane1');const split=chat?.parentElement?.matches('.SplitPane.vertical')?chat.parentElement:null;if(split&&chat){split.dataset.dqMobileChandraSplit='';chat.dataset.dqMobileChandraChat='';const resizer=[...split.children].find(e=>e.matches('.Resizer.vertical'));const content=[...split.children].find(e=>e.matches('.Pane.vertical.Pane2'));if(resizer)resizer.dataset.dqMobileChandraResizer='';if(content)content.dataset.dqMobileChandraContent='';}}if(document.body)document.body.dataset.dqMobileOverlay=String(!!chandra);if(chandra)return;const routeChanged=state.route!==key();if(routeChanged){state.route=key();state.initialized='';}mark();if(document.body&&!document.body.dataset.dqMobileMode)mode(state.mode);else if(routeChanged&&state.mode==='code')initialize();const resume=[...document.querySelectorAll('button,a')].find(e=>!own(e)&&/continue here/i.test(label(e)));if(resume&&!resume.dataset.dqAutoClicked){resume.dataset.dqAutoClicked='1';resume.click();}};
   new MutationObserver(boot).observe(document.documentElement,{childList:true,subtree:true});addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('resize',viewport,{passive:true});window.visualViewport?.addEventListener('scroll',viewport,{passive:true});boot();console.info(`[DQ Mobile] ${VERSION} ready`);

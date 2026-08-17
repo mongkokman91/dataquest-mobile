@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.4');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.5');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -249,12 +249,21 @@ test('shell recovers after Dataquest rerenders to a structurally different works
 });
 
 test('controls remain reachable when the visual viewport shrinks for the keyboard', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
   await openLesson(page);
   await page.getByRole('button', { name: 'CODE', exact: true }).click();
-  await page.setViewportSize({ width: 360, height: 360 });
+  await page.setViewportSize({ width: 412, height: 500 });
   const submit = page.getByRole('button', { name: 'SUBMIT', exact: true });
   await expect(submit).toBeInViewport();
   await expect(page.getByLabel('Dataquest mobile code editor')).toBeEditable();
+  await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-keyboard', 'true');
+  const panes = await page.evaluate(() => ({
+    lesson: document.querySelector('[data-dq-mobile-region="read"]').getBoundingClientRect().height,
+    editor: document.querySelector('#dq-native-editor-shell').getBoundingClientRect().height,
+    viewport: innerHeight
+  }));
+  expect(panes.editor).toBeGreaterThan(panes.lesson * 2);
+  expect(panes.editor).toBeGreaterThan(panes.viewport * 0.6);
 });
 
 test('storage contains only a pathname-scoped draft and no credential material', async ({ page }) => {
