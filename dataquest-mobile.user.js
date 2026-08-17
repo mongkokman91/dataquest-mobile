@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Dataquest Mobile
 // @namespace    https://github.com/mongkokman91/dataquest-mobile
-// @version      0.10.3
+// @version      0.10.4
 // @description  Reliable Android split workspace for Dataquest with READ/CODE/DQ views.
 // @match        https://app.dataquest.io/*
 // @updateURL    https://mongkokman91.github.io/dataquest-mobile/dataquest-mobile.user.js
@@ -11,7 +11,7 @@
 // ==/UserScript==
 (() => {
   'use strict';
-  const VERSION = '0.10.3';
+  const VERSION = '0.10.4';
   // Android userscript managers commonly isolate script globals from the page.
   // CodeMirror 5 stores its live instance as a DOM expando, so querying through
   // the sandboxed window returns the element but not `element.CodeMirror`.
@@ -24,6 +24,13 @@
   const own = e => e?.closest?.('[data-dq-mobile-ui]');
   const label = e => (e?.innerText || e?.textContent || e?.getAttribute?.('aria-label') || '').trim();
   const rendered = e => {if(!e?.isConnected)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.pointerEvents!=='none';};
+  // Dataquest's feedback control receives a complete touch gesture on Android,
+  // but in some Chromium/mobile combinations no follow-up click is synthesized.
+  // Wait briefly for the native click, then provide exactly one if it is absent.
+  const explainClicks=new WeakMap(),explainTimers=new WeakMap();
+  const explainButton=e=>{const b=e?.target?.closest?.('button');return label(b)==='Explain my mistake'?b:null;};
+  pageDocument.addEventListener('click',e=>{const b=explainButton(e);if(!b)return;explainClicks.set(b,Date.now());const timer=explainTimers.get(b);if(timer)pageWindow.clearTimeout(timer);explainTimers.delete(b);},true);
+  pageDocument.addEventListener('pointerup',e=>{if(e.pointerType!=='touch')return;const b=explainButton(e);if(!b||b.disabled)return;const started=Date.now(),prior=explainTimers.get(b);if(prior)pageWindow.clearTimeout(prior);const timer=pageWindow.setTimeout(()=>{explainTimers.delete(b);if(!b.isConnected||b.disabled||(explainClicks.get(b)||0)>=started)return;b.click();},120);explainTimers.set(b,timer);},true);
   const adapter = {
     instructions: () => document.querySelector('#dqScrollTabsContent-Instructions') || document.querySelector('div.SplitPane.vertical>div.Pane.vertical.Pane1 div.dq-px-10.dq-pb-3.dq-overflow-y-auto') || document.querySelector('[data-dq-instructions],[data-testid*="instruction" i]'),
     readPane() { const e=this.instructions(); return e?.closest('div.SplitPane.horizontal>div.Pane.horizontal.Pane1,div.SplitPane.vertical>div.Pane.vertical.Pane1,[data-testid*="instruction-pane" i]') || e; },

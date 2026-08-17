@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.3');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.4');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -134,6 +134,30 @@ test('wide Chandra view uses the left half with lesson and code stacked on the r
   expect(panes.read.left).toBeCloseTo(500, 0);
   expect(panes.code.left).toBeCloseTo(500, 0);
   expect(panes.read.bottom).toBeLessThanOrEqual(panes.code.top + 1);
+});
+
+test('touching Explain my mistake supplies one click only when Chromium omits it', async ({ page }) => {
+  await openLesson(page);
+  const result = await page.evaluate(async () => {
+    const makeButton = () => {
+      const button = document.createElement('button');
+      button.textContent = 'Explain my mistake';
+      button.addEventListener('click', () => button.dataset.clicks = String(Number(button.dataset.clicks || 0) + 1));
+      document.body.append(button);
+      return button;
+    };
+    const missing = makeButton();
+    missing.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+    await new Promise(resolve => setTimeout(resolve, 180));
+    const suppliedClicks = Number(missing.dataset.clicks || 0);
+    missing.remove();
+    const native = makeButton();
+    native.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+    native.click();
+    await new Promise(resolve => setTimeout(resolve, 180));
+    return { suppliedClicks, nativeClicks: Number(native.dataset.clicks || 0) };
+  });
+  expect(result).toEqual({ suppliedClicks: 1, nativeClicks: 1 });
 });
 
 test('RUN and SUBMIT target enabled workspace controls after synchronization', async ({ page }, testInfo) => {
