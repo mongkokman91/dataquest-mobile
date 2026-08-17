@@ -19,7 +19,7 @@ test('newest version replaces controls mounted by a stale userscript copy', asyn
     document.head.insertAdjacentHTML('beforeend', '<style id="dq-mobile-style">#dq-native-editor-shell{display:none}</style>');
   });
   await page.addScriptTag({ content: userscript });
-  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.2');
+  await expect(page.locator('#dq-native-editor-shell')).toHaveAttribute('data-dq-mobile-version', '0.10.3');
   await expect(page.getByLabel('stale editor')).toHaveCount(0);
   await expect(page.getByLabel('Dataquest mobile code editor')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'CODE', exact: true })).toHaveCount(1);
@@ -106,6 +106,8 @@ test('native Chandra explanation view temporarily replaces the mobile workspace'
   await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<section data-chandra-test class="dq-fixed dq-inset-0"><div class="SplitPane vertical"><div data-chandra-drawer class="Pane vertical Pane1" style="flex:0 0 auto;width:27%"><span>Chat with Chandra AI</span><p>Explanation is visible.</p></div><span class="Resizer vertical"></span><div class="Pane vertical Pane2" style="flex:1 1 0%"></div></div></section>'));
   await expect(page.locator('body')).toHaveAttribute('data-dq-mobile-overlay', 'true');
   await expect(page.getByText('Explanation is visible.')).toBeVisible();
+  const portrait = await page.evaluate(() => ({ drawer: document.querySelector('[data-chandra-drawer]').getBoundingClientRect().width, overlay: document.querySelector('[data-chandra-test]').getBoundingClientRect().width }));
+  expect(portrait.drawer).toBeCloseTo(portrait.overlay, 0);
   await expect(page.locator('#dq-native-editor-shell')).toBeHidden();
   await expect(page.locator('#dq-mobile-dock')).toBeHidden();
   await page.evaluate(() => document.querySelector('[data-chandra-test]').remove());
